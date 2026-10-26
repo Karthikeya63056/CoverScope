@@ -19,7 +19,8 @@ decision, or a legal opinion.
   chunks such as `P12-C2`.
 - Retrieves the most relevant clauses for a question using deterministic
   lexical ranking — no embeddings or vector database.
-- Calls Groq (`openai/gpt-oss-20b` by default) with a strict JSON schema.
+- Calls Groq (`openai/gpt-oss-120b` by default) with a strict JSON schema.
+
 - Validates every citation in Python before showing a verdict:
   - the chunk ID must exist in the retrieved evidence;
   - the quotation must appear in that chunk after Unicode-aware normalization;
@@ -144,7 +145,8 @@ The suite does not require a network connection or a live API key.
 | Variable | Default | Purpose |
 |---|---|---|
 | `GROQ_API_KEY` | — | Required for live answers. Read from the environment or `.env`; never logged. |
-| `COVERSCOPE_GROQ_MODEL` | `openai/gpt-oss-20b` | Groq model ID. |
+| `COVERSCOPE_GROQ_MODEL` | `openai/gpt-oss-120b` | Groq model ID. |
+
 | `COVERSCOPE_GROQ_TIMEOUT_SECONDS` | `30` | Per-request timeout. |
 | `COVERSCOPE_GROQ_MAX_COMPLETION_TOKENS` | `1200` | Conservative completion budget. |
 | `COVERSCOPE_MAX_EXTRACTED_CHARS` | `250000` | Reject larger documents; never truncate. |

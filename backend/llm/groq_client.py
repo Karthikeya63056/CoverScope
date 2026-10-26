@@ -28,8 +28,9 @@ from backend.llm.errors import (
 )
 from backend.qa.schemas import ANSWER_JSON_SCHEMA
 
-DEFAULT_MODEL = "openai/gpt-oss-20b"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 DEFAULT_TIMEOUT_SECONDS = 30.0
+
 DEFAULT_MAX_COMPLETION_TOKENS = 1_200
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_REASONING_EFFORT = "low"

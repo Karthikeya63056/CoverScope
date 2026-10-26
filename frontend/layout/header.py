@@ -4,61 +4,71 @@ from __future__ import annotations
 import streamlit as st
 
 from backend.config import settings
-from frontend.components.icons import icon_shield
+from frontend.components.icons import icon_brand_symbol, icon_shield
 from frontend.state import DOC_KEY, reset_app
+from frontend.utils.formatters import clean_html
 
 PAGE_TITLE = "CoverScope"
 TAGLINE = "Your policy. Made clear."
 
 
 def render_brand_header() -> None:
-    """Render the top brand navigation bar."""
-    shield_svg = icon_shield(size=22, color="#0f766e")
-    st.markdown(
-        f"""
-        <div class="cs-header-bar">
-          <div class="cs-brand-cluster">
-            <span style="display:flex; align-items:center;">{shield_svg}</span>
-            <span class="cs-brand-name">{PAGE_TITLE}</span>
-            <span class="cs-brand-tag">Evidence-Grounded</span>
-          </div>
-          <div style="font-size:0.85rem; color:#64748b; font-weight:500;">
-            {TAGLINE}
-          </div>
+    """Render the top brand navigation bar with custom InsurTech identity."""
+    brand_emblem = icon_brand_symbol(size=30, color="#0f766e")
+    html = f"""
+    <div class="cs-header-bar">
+      <div class="cs-brand-cluster">
+        {brand_emblem}
+        <div>
+          <div class="cs-brand-name">{PAGE_TITLE}</div>
+          <div class="cs-brand-sublabel">Evidence-Grounded Policy Intelligence</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <span class="cs-brand-tag">InsurTech AI</span>
+      </div>
+      <div class="cs-header-right">
+        <span class="cs-live-pill">
+          <span class="cs-live-dot"></span>
+          <span>Grounded in policy text</span>
+        </span>
+        <span class="cs-tagline-header">{TAGLINE}</span>
+      </div>
+    </div>
+    """
+    st.markdown(clean_html(html), unsafe_allow_html=True)
 
 
 def render_sidebar() -> None:
     """Render the persistent sidebar with status and system overview."""
     with st.sidebar:
-        shield_svg = icon_shield(size=24, color="#0f766e")
-        st.markdown(
-            f"""
-            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
-              {shield_svg}
-              <span style="font-size:1.35rem; font-weight:800; color:#0a2233;">{PAGE_TITLE}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.caption(TAGLINE)
+        brand_emblem = icon_brand_symbol(size=32, color="#0f766e")
+        html = f"""
+        <div style="display:flex; align-items:center; gap:0.65rem; margin-bottom:0.25rem;">
+          {brand_emblem}
+          <div>
+            <span style="font-size:1.35rem; font-weight:800; color:#0a2233; letter-spacing:-0.03em;">{PAGE_TITLE}</span>
+            <div style="font-size:0.75rem; color:#0f766e; font-weight:600;">{TAGLINE}</div>
+          </div>
+        </div>
+        """
+        st.markdown(clean_html(html), unsafe_allow_html=True)
+
         st.divider()
 
-        st.markdown("**How it works**")
+        st.markdown("**How CoverScope works**")
         st.markdown(
-            "1. **Upload** a text-based policy PDF\n"
-            "2. **Ask** a coverage or exclusion question\n"
-            "3. **Verify** citations against cited page wording"
+            "1. **Upload** an Indian health insurance policy PDF\n"
+            "2. **Ask** a plain-English coverage question\n"
+            "3. **Inspect** the verbatim cited clause & page"
         )
         st.divider()
 
-        st.caption(f"Model: `{settings.groq_model}`")
-        st.caption(f"Evidence window: top {settings.retrieval_top_k} retrieved chunks")
+        st.markdown("**Engine parameters**")
+        st.caption(f"Provider model: `{settings.groq_model}`")
+        st.caption(f"Evidence retrieval window: top {settings.retrieval_top_k} chunks")
+        st.caption("Verification: Python verbatim substring matching")
 
         if st.session_state.get(DOC_KEY) is not None:
+            st.divider()
             st.button(
                 "Start a new document",
                 on_click=reset_app,
@@ -67,7 +77,13 @@ def render_sidebar() -> None:
             )
 
         st.divider()
+        if st.button("Replay cinematic intro", use_container_width=True, key="replay_intro"):
+            st.session_state["cs_replay_intro"] = True
+            st.rerun()
+
+
+        st.divider()
         st.caption(
-            "CoverScope is an informational tool, not insurance advice or a claim "
-            "decision. Always verify against the policy schedule and your insurer."
+            "CoverScope is an informational reading tool, not insurance advice or a claim "
+            "determination. Always verify against the policy schedule with your insurer."
         )

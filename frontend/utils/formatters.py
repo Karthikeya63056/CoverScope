@@ -36,6 +36,16 @@ def blockquote(text: str) -> str:
     return "\n".join("> " + line if line.strip() else ">" for line in lines)
 
 
+def clean_html(html: str) -> str:
+    """Format multiline HTML for safe st.markdown rendering without CommonMark code block pitfalls.
+
+    Strips all leading and trailing whitespace from every line, eliminating 4-space
+    indented code block interpretation and removing empty lines.
+    """
+    lines = [line.strip() for line in html.strip().splitlines() if line.strip()]
+    return "\n".join(lines)
+
+
 # Private aliases for backwards compatibility with tests
 _escape_md = escape_md
 _blockquote = blockquote

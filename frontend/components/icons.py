@@ -24,6 +24,18 @@ def svg_icon(
     )
 
 
+def icon_brand_symbol(size: int = 26, color: str = "#0f766e") -> str:
+    """Custom CoverScope emblem combining a security shield with an evidence document fold."""
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+        f'viewBox="0 0 32 32" fill="none" class="cs-brand-emblem" style="display:inline-block; vertical-align:middle;">'
+        f'<rect width="32" height="32" rx="8" fill="#0a2233"/>'
+        f'<path d="M16 6L8 9.5V16C8 21.2 11.4 25.8 16 27C20.6 25.8 24 21.2 24 16V9.5L16 6Z" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        f'<path d="M12.5 15.5L15 18L19.5 13.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        f'</svg>'
+    )
+
+
 def icon_shield(size: int = 18, color: str = "currentColor") -> str:
     return svg_icon(
         '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',

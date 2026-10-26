@@ -5,7 +5,8 @@ from typing import Any, Sequence
 
 import streamlit as st
 
-from frontend.components.icons import icon_bookmark, icon_check_circle, icon_alert_triangle
+from frontend.components.empty_state import render_empty_evidence_state
+from frontend.components.icons import icon_alert_triangle, icon_bookmark, icon_check_circle
 from frontend.utils.formatters import blockquote
 
 
@@ -84,7 +85,7 @@ def render_evidence_section(
     st.markdown("#### Cited evidence")
 
     if not citations:
-        st.caption("No verified quotations were returned for this answer.")
+        render_empty_evidence_state()
         return
 
     for idx, citation in enumerate(citations, start=1):

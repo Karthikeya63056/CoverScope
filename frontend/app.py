@@ -21,12 +21,14 @@ from backend.qa.answer import AnswerResult
 from backend.qa.workflow import ProcessedPolicy
 from frontend.components.analysis_status import render_provider_error
 from frontend.components.answer_summary import render_answer_summary
+from frontend.components.brand_intro import render_brand_intro, render_cinematic_intro
 from frontend.components.caveats import (
     render_caveats_and_warnings,
     render_manual_review_banner,
 )
 from frontend.components.confidence import render_confidence_metrics
 from frontend.components.document_card import render_document_card
+from frontend.components.empty_state import render_empty_answer_state
 from frontend.components.evidence_card import render_evidence_section
 from frontend.components.hero import render_hero, render_value_props
 from frontend.components.icons import (
@@ -39,6 +41,7 @@ from frontend.components.icons import (
     icon_upload,
     icon_x_circle,
 )
+from frontend.components.privacy_notice import render_privacy_notice
 from frontend.components.question_composer import render_question_composer
 from frontend.components.upload import render_upload_error, render_uploader
 from frontend.components.verdict_card import render_verdict_card
@@ -172,15 +175,22 @@ def _render_answer_zone() -> None:
             )
         _render_answer(result, st.session_state.get(LAST_Q_KEY))
     elif not error:
-        st.caption("Ask a question to see a verdict with cited evidence.")
+        render_empty_answer_state()
 
 
 def main() -> None:
     setup_page()
     render_sidebar()
+
+    # Cinematic 3D intro overlay (plays on initial landing or explicit replay)
+    force_replay = bool(st.session_state.pop("cs_replay_intro", False))
+    render_cinematic_intro(force_play=force_replay)
+
     render_brand_header()
     policy = st.session_state.get(DOC_KEY)
     render_hero(compact=policy is not None)
+
+
 
     uploaded = render_uploader()
 
@@ -198,6 +208,7 @@ def main() -> None:
         render_upload_error()
         if not st.session_state.get(DOC_ERROR_KEY):
             render_value_props()
+            render_privacy_notice(expanded=False)
     else:
         render_document_card(policy)
         st.write("")

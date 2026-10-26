@@ -11,17 +11,18 @@ from frontend.components.icons import (
     icon_help_circle,
     icon_x_circle,
 )
+from frontend.utils.formatters import clean_html
 from frontend.utils.view_models import VerdictViewModel
 
 
 def _verdict_icon(verdict_key: str) -> str:
     if verdict_key == "covered":
-        return icon_check_circle(size=16, color="#15803d")
+        return icon_check_circle(size=18, color="#15803d")
     if verdict_key == "excluded":
-        return icon_x_circle(size=16, color="#b91c1c")
+        return icon_x_circle(size=18, color="#b91c1c")
     if verdict_key == "depends":
-        return icon_alert_triangle(size=16, color="#b45309")
-    return icon_help_circle(size=16, color="#475569")
+        return icon_alert_triangle(size=18, color="#b45309")
+    return icon_help_circle(size=18, color="#475569")
 
 
 def render_verdict_card(
@@ -61,7 +62,7 @@ def render_verdict_card(
             '<span class="cs-chip cs-chip-warn">'
             '<span style="display:inline-flex; align-items:center;">'
             f'{icon_alert_triangle(size=12, color="#b45309")}</span>'
-            '<span>Manual review</span></span>'
+            '<span>Manual review required</span></span>'
         )
     else:
         status_chip = (
@@ -71,10 +72,13 @@ def render_verdict_card(
             '<span>Citations verified</span></span>'
         )
 
-    st.markdown(
-        f'<div class="cs-answer-head">{badge_html}{status_chip}</div>',
-        unsafe_allow_html=True,
-    )
-
-    if vm.summary_text:
-        st.caption(vm.summary_text)
+    surface_html = f"""
+    <div class="cs-verdict-surface {vm.badge_class}-surface">
+      <div class="cs-answer-head">
+        {badge_html}
+        {status_chip}
+      </div>
+      <div class="cs-verdict-desc">{vm.summary_text}</div>
+    </div>
+    """
+    st.markdown(clean_html(surface_html), unsafe_allow_html=True)

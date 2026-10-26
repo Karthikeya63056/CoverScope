@@ -16,6 +16,7 @@ from backend.qa.workflow import (
     fingerprint,
     prepare_policy,
 )
+from frontend.components.brand_intro import render_real_time_status
 from frontend.messages import describe_llm_error
 
 DOC_KEY = "cs_document"
@@ -100,17 +101,23 @@ def ensure_processed(uploaded: Any) -> None:
     st.session_state.pop(QUESTION_KEY, None)
     st.session_state.pop(AUTO_ASK_KEY, None)
 
+    status_slot = st.empty()
     try:
-        with st.spinner("Reading the PDF, checking extraction quality, and preparing evidence…"):
-            policy = prepare_policy(
-                data,
-                uploaded.name,
-                max_upload_bytes=settings.max_upload_bytes,
-                max_extracted_chars=settings.max_extracted_chars,
-                min_page_chars=settings.min_page_chars,
-                chunk_chars=settings.chunk_chars,
+        with status_slot.container():
+            render_real_time_status(
+                "Reading your policy document",
+                "Extracting selectable clauses in memory and checking readability…",
             )
+        policy = prepare_policy(
+            data,
+            uploaded.name,
+            max_upload_bytes=settings.max_upload_bytes,
+            max_extracted_chars=settings.max_extracted_chars,
+            min_page_chars=settings.min_page_chars,
+            chunk_chars=settings.chunk_chars,
+        )
     except PolicyProcessingError as exc:
+        status_slot.empty()
         st.session_state[DOC_ERROR_KEY] = {
             "message": str(exc),
             "errors": exc.errors,
@@ -118,6 +125,7 @@ def ensure_processed(uploaded: Any) -> None:
         }
         st.session_state[DOC_FP_KEY] = current_fingerprint
     except Exception:
+        status_slot.empty()
         # Never render a raw traceback in the interface or log document text.
         st.session_state[DOC_ERROR_KEY] = {
             "message": "The PDF could not be processed. It may be damaged or unsupported.",
@@ -126,6 +134,7 @@ def ensure_processed(uploaded: Any) -> None:
         }
         st.session_state[DOC_FP_KEY] = current_fingerprint
     else:
+        status_slot.empty()
         st.session_state[DOC_KEY] = policy
         st.session_state.pop(DOC_ERROR_KEY, None)
         st.session_state[DOC_FP_KEY] = current_fingerprint
@@ -134,20 +143,27 @@ def ensure_processed(uploaded: Any) -> None:
 
 def run_question(policy: ProcessedPolicy, question: str) -> None:
     """Make one provider request for one explicit user action."""
+    status_slot = st.empty()
     try:
+        with status_slot.container():
+            render_real_time_status(
+                "Analyzing relevant clauses",
+                "Retrieving evidence and verifying citations in Python…",
+            )
         client = groq_client_module.GroqClient(
             model=settings.groq_model,
             timeout=settings.groq_timeout_seconds,
             max_completion_tokens=settings.groq_max_completion_tokens,
         )
-        with st.spinner("Retrieving policy evidence and checking every citation…"):
-            result = ask_policy_question(question, policy, client)
+        result = ask_policy_question(question, policy, client)
     except Exception as exc:
+        status_slot.empty()
         friendly = describe_llm_error(exc)
         st.session_state[ERROR_KEY] = friendly.message
         if friendly.retry_after_seconds:
             st.session_state[COOLDOWN_KEY] = time.time() + friendly.retry_after_seconds
     else:
+        status_slot.empty()
         st.session_state[RESULT_KEY] = result
         st.session_state[LAST_Q_KEY] = question
         st.session_state.pop(ERROR_KEY, None)

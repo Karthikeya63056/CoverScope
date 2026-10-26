@@ -1,11 +1,12 @@
 """Design system tokens for CoverScope.
 
-Fintech / editorial direction:
-- Deep navy / blue-charcoal as principal brand anchor
-- Muted deep teal as modern intelligence accent
-- Warm ivory and clean slate surfaces
-- High-contrast, legible typography
-- Restrained semantic colors for coverage verdicts
+Healthcare-grade InsurTech visual direction:
+- Deep midnight navy as authority and trust anchor (#0A2233)
+- Muted deep teal as modern AI intelligence accent (#0F766E)
+- Refined off-white canvas with luminous ambient gradients (#F7FAF9)
+- Pure white elevated surfaces with crisp 1px borders (#FFFFFF, #E2E8F0)
+- High-contrast, highly legible slate typography (#0F172A, #334155)
+- Restrained, accessible semantic colors for coverage verdicts
 """
 from __future__ import annotations
 
@@ -15,11 +16,12 @@ COLOR_PRIMARY_NAVY_DARK = "#061622"
 COLOR_ACCENT_TEAL = "#0f766e"
 COLOR_ACCENT_TEAL_DARK = "#0d5f58"
 COLOR_ACCENT_TEAL_LIGHT = "#ccfbf1"
+COLOR_ACCENT_TEAL_SUBTLE = "#f0fdfa"
 
 # Surfaces & Backgrounds
-COLOR_BG_PAGE = "#f7f6f2"          # Warm ivory neutral
-COLOR_SURFACE_CARD = "#ffffff"     # Clean card white
-COLOR_SURFACE_HOVER = "#f1f5f9"
+COLOR_BG_PAGE = "#f7faf9"          # Luminous off-white
+COLOR_SURFACE_CARD = "#ffffff"     # Pure white card surface
+COLOR_SURFACE_HOVER = "#f8fafc"
 COLOR_BORDER_SUBTLE = "#e2e8f0"    # Crisp thin border
 COLOR_BORDER_STRONG = "#cbd5e1"
 COLOR_BORDER_FOCUS = "#0f766e"
@@ -32,7 +34,7 @@ COLOR_TEXT_DISABLED = "#94a3b8"   # Slate-400
 COLOR_TEXT_INVERSE = "#ffffff"
 
 # Semantic & Verdict Colors
-COLOR_VERDICT_COVERED = "#15803d"       # Forest green
+COLOR_VERDICT_COVERED = "#15803d"       # Restrained forest green
 COLOR_VERDICT_COVERED_BG = "#f0fdf4"
 COLOR_VERDICT_COVERED_BORDER = "#bbf7d0"
 
@@ -44,7 +46,7 @@ COLOR_VERDICT_DEPENDS = "#b45309"       # Warm amber
 COLOR_VERDICT_DEPENDS_BG = "#fffbeb"
 COLOR_VERDICT_DEPENDS_BORDER = "#fde68a"
 
-COLOR_VERDICT_NOT_STATED = "#475569"    # Slate
+COLOR_VERDICT_NOT_STATED = "#475569"    # Neutral slate
 COLOR_VERDICT_NOT_STATED_BG = "#f8fafc"
 COLOR_VERDICT_NOT_STATED_BORDER = "#cbd5e1"
 
@@ -58,8 +60,8 @@ COLOR_STATUS_INFO_BORDER = "#bae6fd"
 
 # Typography Scale
 FONT_FAMILY = (
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", '
-    'Arial, sans-serif'
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", '
+    '"Helvetica Neue", Arial, sans-serif'
 )
 FONT_SIZE_2XS = "0.72rem"
 FONT_SIZE_XS = "0.78rem"
