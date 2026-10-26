@@ -1,0 +1,370 @@
+/* CoverScope Global Design System Stylesheet */
+:root {
+  --cs-navy: #0a2233;
+  --cs-navy-dark: #061622;
+  --cs-teal: #0f766e;
+  --cs-teal-dark: #0d5f58;
+  --cs-teal-light: #ccfbf1;
+  --cs-teal-subtle: #f0fdfa;
+
+  --cs-bg: #f7f6f2;
+  --cs-card: #ffffff;
+  --cs-card-hover: #fcfdfd;
+  --cs-border: #e2e8f0;
+  --cs-border-strong: #cbd5e1;
+  --cs-border-focus: #0f766e;
+
+  --cs-text-primary: #0f172a;
+  --cs-text-body: #334155;
+  --cs-text-muted: #64748b;
+  --cs-text-disabled: #94a3b8;
+
+  --cs-verdict-covered: #15803d;
+  --cs-verdict-covered-bg: #f0fdf4;
+  --cs-verdict-covered-border: #bbf7d0;
+
+  --cs-verdict-excluded: #b91c1c;
+  --cs-verdict-excluded-bg: #fef2f2;
+  --cs-verdict-excluded-border: #fecaca;
+
+  --cs-verdict-depends: #b45309;
+  --cs-verdict-depends-bg: #fffbeb;
+  --cs-verdict-depends-border: #fde68a;
+
+  --cs-verdict-not-stated: #475569;
+  --cs-verdict-not-stated-bg: #f8fafc;
+  --cs-verdict-not-stated-border: #cbd5e1;
+
+  --cs-radius-sm: 6px;
+  --cs-radius-md: 10px;
+  --cs-radius-lg: 14px;
+  --cs-radius-xl: 20px;
+  --cs-radius-pill: 9999px;
+
+  --cs-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --cs-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* Background & Root Typography */
+.stApp {
+  background:
+    radial-gradient(1200px 500px at 15% -10%, #eaf2ee 0%, rgba(247, 246, 242, 0) 65%),
+    radial-gradient(800px 400px at 85% 5%, #f2f6f5 0%, rgba(247, 246, 242, 0) 60%),
+    var(--cs-bg);
+  color: var(--cs-text-body);
+}
+
+[data-testid="stHeader"] {
+  background: transparent;
+}
+
+.block-container {
+  max-width: 1080px;
+  padding-top: 1.75rem;
+  padding-bottom: 4rem;
+}
+
+html, body, p, li, label, button, input, textarea {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5 {
+  color: var(--cs-text-primary);
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+p, li {
+  color: var(--cs-text-body);
+  line-height: 1.6;
+}
+
+a {
+  color: var(--cs-teal);
+  text-decoration: none;
+  font-weight: 500;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Header & Brand Framing */
+.cs-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0 1.25rem;
+  border-bottom: 1px solid var(--cs-border);
+  margin-bottom: 1.75rem;
+}
+
+.cs-brand-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cs-brand-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--cs-navy);
+  line-height: 1;
+}
+
+.cs-brand-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cs-teal);
+  background: var(--cs-teal-subtle);
+  border: 1px solid var(--cs-teal-light);
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--cs-radius-pill);
+  letter-spacing: 0.02em;
+}
+
+/* Hero Section */
+.cs-hero {
+  padding: 0.5rem 0 1.5rem;
+}
+
+.cs-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: var(--cs-teal);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.cs-title {
+  font-size: clamp(2.4rem, 5.5vw, 3.6rem);
+  line-height: 1.06;
+  margin: 0.25rem 0 0.35rem;
+  color: var(--cs-navy);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.cs-tagline {
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+  color: var(--cs-teal);
+  font-weight: 600;
+  margin-top: 0.25rem;
+  letter-spacing: -0.015em;
+}
+
+.cs-lede {
+  max-width: 48rem;
+  font-size: 1.05rem;
+  line-height: 1.68;
+  color: var(--cs-text-body);
+  margin-top: 0.75rem;
+}
+
+/* Feature Cards & Value Props */
+.cs-card {
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-lg);
+  padding: 1.2rem 1.25rem;
+  box-shadow: var(--cs-shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  height: 100%;
+}
+.cs-card:hover {
+  box-shadow: var(--cs-shadow-md);
+  border-color: var(--cs-border-strong);
+}
+
+.cs-card h3 {
+  font-size: 1.02rem;
+  margin: 0.25rem 0 0.4rem;
+  color: var(--cs-text-primary);
+}
+
+.cs-card p {
+  font-size: 0.88rem;
+  color: var(--cs-text-muted);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.cs-step {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--cs-teal);
+  font-weight: 700;
+}
+
+/* Verdict Badges & Status Chips */
+.cs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--cs-radius-pill);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.cs-badge-covered {
+  background: var(--cs-verdict-covered-bg);
+  color: var(--cs-verdict-covered);
+  border: 1px solid var(--cs-verdict-covered-border);
+}
+
+.cs-badge-excluded {
+  background: var(--cs-verdict-excluded-bg);
+  color: var(--cs-verdict-excluded);
+  border: 1px solid var(--cs-verdict-excluded-border);
+}
+
+.cs-badge-depends {
+  background: var(--cs-verdict-depends-bg);
+  color: var(--cs-verdict-depends);
+  border: 1px solid var(--cs-verdict-depends-border);
+}
+
+.cs-badge-not-stated {
+  background: var(--cs-verdict-not-stated-bg);
+  color: var(--cs-verdict-not-stated);
+  border: 1px solid var(--cs-verdict-not-stated-border);
+}
+
+.cs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.24rem 0.65rem;
+  border-radius: var(--cs-radius-pill);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.cs-chip-ok {
+  background: var(--cs-verdict-covered-bg);
+  color: var(--cs-verdict-covered);
+  border: 1px solid var(--cs-verdict-covered-border);
+}
+
+.cs-chip-warn {
+  background: var(--cs-verdict-depends-bg);
+  color: var(--cs-verdict-depends);
+  border: 1px solid var(--cs-verdict-depends-border);
+}
+
+.cs-answer-head {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.2rem 0 0.75rem;
+}
+
+.cs-cite-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cs-teal);
+  font-weight: 700;
+}
+
+/* Metric Display Overrides */
+div[data-testid="stMetric"] {
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  padding: 0.75rem 1rem;
+  box-shadow: var(--cs-shadow-sm);
+}
+
+div[data-testid="stMetricLabel"] p {
+  color: var(--cs-text-muted) !important;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+div[data-testid="stMetricValue"] {
+  color: var(--cs-navy);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+/* Streamlit Button Tweaks */
+.stButton > button {
+  border-radius: var(--cs-radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  transition: all 0.15s ease-in-out;
+  border: 1px solid var(--cs-border);
+}
+
+.stButton > button[kind="primary"] {
+  background: var(--cs-teal);
+  border-color: var(--cs-teal);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.2);
+}
+
+.stButton > button[kind="primary"]:hover {
+  background: var(--cs-teal-dark);
+  border-color: var(--cs-teal-dark);
+  box-shadow: 0 4px 6px -1px rgba(15, 118, 110, 0.3);
+}
+
+.stButton > button[kind="secondary"]:hover {
+  background: var(--cs-card-hover);
+  border-color: var(--cs-border-strong);
+}
+
+/* File Uploader */
+[data-testid="stFileUploader"] section {
+  border: 1.5px dashed var(--cs-border-strong);
+  border-radius: var(--cs-radius-lg);
+  background: #fbfcfc;
+  padding: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+[data-testid="stFileUploader"] section:hover {
+  border-color: var(--cs-teal);
+}
+
+/* Expander Details */
+div[data-testid="stExpander"] details {
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-card);
+}
+
+/* Footer Note */
+.cs-footer {
+  color: var(--cs-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  padding-top: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .block-container {
+    padding-top: 1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .cs-title {
+    font-size: 2.2rem;
+  }
+}

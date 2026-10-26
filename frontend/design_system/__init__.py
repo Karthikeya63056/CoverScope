@@ -1,0 +1,1 @@
+"""CoverScope Design System package."""
