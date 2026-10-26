@@ -1,15 +1,20 @@
 # Frontend workspace
 
-The MVP uses Streamlit. Keep presentation code here; keep PDF extraction,
-policy interpretation, and evidence validation in `backend/`.
+The MVP uses Streamlit. Presentation code lives here; PDF extraction, policy
+interpretation, and evidence validation stay in `backend/`.
 
-Planned entry point: `frontend/app.py`.
-
-Run from the repository root once the entry point is implemented:
+Entry point:
 
 ```powershell
 streamlit run frontend/app.py
 ```
 
-The entry point should cache the processed document in `st.session_state` so
-ordinary Streamlit reruns do not re-extract the same PDF or repeat an LLM call.
+The app keeps the processed document and the last result in
+`st.session_state`. A content fingerprint prevents PDF reprocessing on ordinary
+reruns, and the provider is called only on an explicit **Ask** action.
+
+`frontend/messages.py` holds UI-safe copy and translates application-level LLM
+errors into friendly messages without echoing exception text or secrets.
+
+See the repository-level `README.md` for setup, environment variables, privacy
+notes, limitations, and deployment steps.

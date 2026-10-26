@@ -1,6 +1,6 @@
 import pytest
 
-from backend.config import DEFAULT_MAX_EXTRACTED_CHARS
+from backend.config import DEFAULT_MAX_EXTRACTED_CHARS, DEFAULT_MAX_UPLOAD_BYTES
 from backend.document_processing.quality_checks import assess_quality
 from backend.document_processing.text_extractor import ExtractedPage
 from backend.qa.reliability import is_explicitly_unreliable, parse_page_selection
@@ -12,6 +12,7 @@ def page(number: int, text: str) -> ExtractedPage:
 
 def test_default_document_limit_is_250000():
     assert DEFAULT_MAX_EXTRACTED_CHARS == 250_000
+    assert DEFAULT_MAX_UPLOAD_BYTES == 20_000_000
 
 
 def test_oversized_document_is_rejected_not_truncated():

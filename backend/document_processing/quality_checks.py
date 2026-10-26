@@ -73,9 +73,10 @@ def assess_quality(
         )
     if total_chars > max_extracted_chars:
         errors.append(
-            f"Extracted text is {total_chars:,} characters, exceeding the configured "
-            f"limit of {max_extracted_chars:,}. Measure sample documents and confirm "
-            "the limit against the selected model's context and cost constraints."
+            f"Extracted text is {total_chars:,} characters, exceeding the "
+            f"configured limit of {max_extracted_chars:,}. The document was not "
+            "truncated. Choose a smaller policy PDF or raise the limit if "
+            "appropriate."
         )
 
     return QualityReport(

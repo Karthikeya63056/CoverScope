@@ -12,6 +12,7 @@ load_dotenv()
 # 20,703 / 110,757 / 188,927 extracted characters. 250k leaves headroom
 # without approaching a typical model's practical prompt budget.
 DEFAULT_MAX_EXTRACTED_CHARS = 250_000
+DEFAULT_MAX_UPLOAD_BYTES = 20_000_000
 DEFAULT_CHUNK_CHARS = 1_800
 DEFAULT_MIN_PAGE_CHARS = 40
 DEFAULT_RETRIEVAL_TOP_K = 5
@@ -57,6 +58,11 @@ def _non_empty(name: str, default: str) -> str:
 class Settings:
     max_extracted_chars: int = _positive_int(
         "COVERSCOPE_MAX_EXTRACTED_CHARS", DEFAULT_MAX_EXTRACTED_CHARS
+    )
+    # A cheap guard before reading bytes. The extracted-character limit below
+    # remains the authoritative content limit; neither value truncates input.
+    max_upload_bytes: int = _positive_int(
+        "COVERSCOPE_MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES
     )
     chunk_chars: int = _positive_int("COVERSCOPE_CHUNK_CHARS", DEFAULT_CHUNK_CHARS)
     min_page_chars: int = _positive_int(

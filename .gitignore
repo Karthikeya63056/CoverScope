@@ -2,6 +2,8 @@
 __pycache__/
 .pytest_cache/
 .env
+.streamlit/secrets.toml
 *.py[cod]
 .DS_Store
 sample_data/*.pdf
+evaluation/results.json
