@@ -1,0 +1,138 @@
+[
+  {
+    "policy": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "question": "Without the optional PED waiting-time modification, is a pre-existing disease covered in month 20 of continuous coverage?",
+    "expected_verdict": "excluded",
+    "expected_pages": [10],
+    "expect_manual_review": false,
+    "notes": "PED waiting period is 36 months (Excl01); section 4.20 is an optional modification."
+  },
+  {
+    "policy": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "question": "Is a pre-existing disease covered after 36 months of continuous coverage?",
+    "expected_verdict": "depends",
+    "expected_pages": [10],
+    "expect_manual_review": false,
+    "notes": "Coverage after 36 months is subject to declaration and acceptance."
+  },
+  {
+    "policy": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "question": "Is treatment for a specified disease covered in month 12?",
+    "expected_verdict": "excluded",
+    "expected_pages": [10],
+    "expect_manual_review": false,
+    "notes": "Specified disease/procedure waiting period is 24 months (Excl02)."
+  },
+  {
+    "policy": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "question": "Is treatment for alcoholism covered?",
+    "expected_verdict": "excluded",
+    "expected_pages": [11],
+    "expect_manual_review": false,
+    "notes": "Explicit exclusion for alcoholism and substance abuse (Excl12)."
+  },
+  {
+    "policy": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "question": "Is a condition under a personal waiting period covered after 48 months?",
+    "expected_verdict": "depends",
+    "expected_pages": [12],
+    "expect_manual_review": false,
+    "notes": "Personal waiting periods can be up to 48 months; the specific condition matters."
+  },
+  {
+    "policy": "pdfs/optima-secure-revision-pw.pdf",
+    "question": "Is a pre-existing disease covered in month 20?",
+    "expected_verdict": "excluded",
+    "expected_pages": [28],
+    "expect_manual_review": false,
+    "notes": "PED waiting period is 36 months (Excl01)."
+  },
+  {
+    "policy": "pdfs/optima-secure-revision-pw.pdf",
+    "question": "Is a pre-existing disease covered after 36 months?",
+    "expected_verdict": "depends",
+    "expected_pages": [28],
+    "expect_manual_review": false,
+    "notes": "Coverage after 36 months is subject to declaration and acceptance."
+  },
+  {
+    "policy": "pdfs/optima-secure-revision-pw.pdf",
+    "question": "For a new policyholder with no prior continuous coverage, is an illness treated within 30 days of the first policy commencement date covered?",
+    "expected_verdict": "excluded",
+    "expected_pages": [30],
+    "expect_manual_review": false,
+    "notes": "30-day waiting period (Excl03), except claims arising from an accident; Excl03(ii) lifts it after 12 months of continuous coverage, which this question excludes."
+  },
+  {
+    "policy": "pdfs/optima-secure-revision-pw.pdf",
+    "question": "Are diagnostic tests admitted primarily for evaluation covered?",
+    "expected_verdict": "excluded",
+    "expected_pages": [30],
+    "expect_manual_review": false,
+    "notes": "Investigation and evaluation exclusion (Excl04)."
+  },
+  {
+    "policy": "pdfs/optima-secure-revision-pw.pdf",
+    "question": "Is surgery for obesity covered?",
+    "expected_verdict": "depends",
+    "expected_pages": [30],
+    "expect_manual_review": false,
+    "notes": "Obesity treatment is excluded unless the stated BMI and clinical conditions are met (Excl06)."
+  },
+  {
+    "policy": "pdfs/optima-secure-revision-pw.pdf",
+    "question": "Without specifying the plan, is room rent covered at actuals under Optima Secure?",
+    "expected_verdict": "depends",
+    "expected_pages": [25, 26],
+    "expect_manual_review": false,
+    "notes": "Base cover is at actuals, but Optima Lite caps room rent at 1% of base sum insured per day and Optima Select limits it to a single private room. The plan is required to answer."
+  },
+  {
+    "policy": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "question": "Without the optional PED buy-back cover, is a pre-existing disease covered in month 20?",
+    "expected_verdict": "excluded",
+    "expected_pages": [12],
+    "expect_manual_review": false,
+    "notes": "PED waiting period is 36 months; buy-back is optional."
+  },
+  {
+    "policy": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "question": "After purchasing the PED buy-back cover, is a pre-existing disease covered in month 20?",
+    "expected_verdict": "covered",
+    "expected_pages": [12],
+    "expect_manual_review": false,
+    "notes": "Buy-back reduces the PED waiting period from 36 to 12 months."
+  },
+  {
+    "policy": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "question": "Is bariatric surgery covered immediately after policy commencement?",
+    "expected_verdict": "excluded",
+    "expected_pages": [9],
+    "expect_manual_review": false,
+    "notes": "Bariatric surgery is subject to a 36-month waiting period."
+  },
+  {
+    "policy": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "question": "Are outpatient medical consultations covered?",
+    "expected_verdict": "covered",
+    "expected_pages": [9],
+    "expect_manual_review": false,
+    "notes": "Covered up to Rs. 300 per consultation, cashless."
+  },
+  {
+    "policy": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "question": "Is treatment for alcoholism covered?",
+    "expected_verdict": "excluded",
+    "expected_pages": [13],
+    "expect_manual_review": false,
+    "notes": "Listed in key exclusions."
+  },
+  {
+    "policy": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "question": "Are diagnostic admissions covered?",
+    "expected_verdict": "excluded",
+    "expected_pages": [13],
+    "expect_manual_review": false,
+    "notes": "Admissions primarily for diagnostics and evaluation are excluded."
+  }
+]

@@ -22,7 +22,7 @@ def assess_quality(
     pages: list[ExtractedPage],
     *,
     min_page_chars: int = 40,
-    max_extracted_chars: int = 400_000,
+    max_extracted_chars: int = 250_000,
 ) -> QualityReport:
     warnings: list[str] = []
     errors: list[str] = []
