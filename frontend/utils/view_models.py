@@ -6,7 +6,62 @@ from typing import Sequence
 
 from backend.qa.answer import AnswerResult, VerifiedCitation
 from frontend.messages import VERDICT_LABELS, VERDICT_SUMMARIES
-from frontend.utils.formatters import confidence_label, verdict_label
+from frontend.utils.formatters import confidence_label, escape_md, format_bytes, verdict_label
+
+
+@dataclass(frozen=True)
+class DocumentViewModel:
+    """Presentation model wrapping a ProcessedPolicy for structured display."""
+
+    filename: str
+    escaped_filename: str
+    page_count: int
+    page_count_display: str
+    size_bytes: int
+    file_size_display: str
+    extracted_characters: int
+    extracted_characters_display: str
+    chunk_count: int
+    chunk_count_display: str
+    status_label: str
+    text_poor_pages: tuple[int, ...]
+    table_review_pages: tuple[int, ...]
+    quality_warnings: tuple[str, ...]
+    has_warnings: bool
+
+    @classmethod
+    def from_policy(cls, policy: Any) -> DocumentViewModel:
+        raw_filename = getattr(policy, "filename", "Unnamed Policy.pdf") or "Unnamed Policy.pdf"
+        pages = int(getattr(policy, "page_count", 0) or 0)
+        size = int(getattr(policy, "size_bytes", 0) or 0)
+        chars = int(getattr(policy, "extracted_characters", 0) or 0)
+        chunks = getattr(policy, "chunks", ()) or ()
+        chunk_count = len(chunks)
+
+        quality = getattr(policy, "quality", None)
+        text_poor = tuple(getattr(quality, "text_poor_pages", ()) or ())
+        table_review = tuple(getattr(quality, "table_review_pages", ()) or ())
+        warnings = tuple(getattr(quality, "warnings", ()) or ())
+
+        has_warnings = bool(text_poor or table_review or warnings)
+
+        return cls(
+            filename=raw_filename,
+            escaped_filename=escape_md(raw_filename),
+            page_count=pages,
+            page_count_display=f"{pages:,}",
+            size_bytes=size,
+            file_size_display=format_bytes(size),
+            extracted_characters=chars,
+            extracted_characters_display=f"{chars:,}",
+            chunk_count=chunk_count,
+            chunk_count_display=f"{chunk_count:,}",
+            status_label="Extracted · Ready for Q&A",
+            text_poor_pages=text_poor,
+            table_review_pages=table_review,
+            quality_warnings=warnings,
+            has_warnings=has_warnings,
+        )
 
 
 @dataclass(frozen=True)

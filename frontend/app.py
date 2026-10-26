@@ -19,6 +19,15 @@ if str(ROOT) not in sys.path:
 from backend.config import settings
 from backend.qa.answer import AnswerResult
 from backend.qa.workflow import ProcessedPolicy
+from frontend.components.analysis_status import render_provider_error
+from frontend.components.answer_summary import render_answer_summary
+from frontend.components.caveats import (
+    render_caveats_and_warnings,
+    render_manual_review_banner,
+)
+from frontend.components.confidence import render_confidence_metrics
+from frontend.components.document_card import render_document_card
+from frontend.components.evidence_card import render_evidence_section
 from frontend.components.hero import render_hero, render_value_props
 from frontend.components.icons import (
     icon_alert_triangle,
@@ -30,7 +39,9 @@ from frontend.components.icons import (
     icon_upload,
     icon_x_circle,
 )
+from frontend.components.question_composer import render_question_composer
 from frontend.components.upload import render_upload_error, render_uploader
+from frontend.components.verdict_card import render_verdict_card
 from frontend.layout.footer import render_footer
 from frontend.layout.header import (
     PAGE_TITLE,
@@ -111,171 +122,40 @@ __all__ = [
 ]
 
 
-# Hero and Upload aliases
+# Component aliases
 _render_hero = render_hero
 _render_landing = render_value_props
 _render_uploader = render_uploader
 _render_document_error = render_upload_error
-
-
-def _render_document_summary(policy: ProcessedPolicy) -> None:
-    with st.container(border=True):
-        title_col, status_col = st.columns([5, 1])
-        with title_col:
-            st.markdown(f"### {escape_md(policy.filename)}")
-            st.caption("Policy loaded · extracted and chunked in memory")
-        with status_col:
-            st.markdown(
-                '<span class="cs-chip cs-chip-ok">Ready</span>',
-                unsafe_allow_html=True,
-            )
-
-        columns = st.columns(4)
-        columns[0].metric("Pages", f"{policy.page_count:,}")
-        columns[1].metric(
-            "Extracted text",
-            f"{policy.extracted_characters:,}",
-            help="Characters of selectable text. Documents above the limit are rejected, never truncated.",
-        )
-        columns[2].metric("Searchable chunks", f"{len(policy.chunks):,}")
-        columns[3].metric("File size", format_bytes(policy.size_bytes))
-
-        if policy.quality.text_poor_pages:
-            st.caption(
-                "Low-text pages: "
-                + ", ".join(map(str, policy.quality.text_poor_pages))
-                + ". Review these pages if they are relevant to your question."
-            )
-        if policy.quality.table_review_pages:
-            st.caption(
-                "Possible table / multi-column pages for manual review: "
-                + ", ".join(map(str, policy.quality.table_review_pages))
-                + ". Text extraction does not guarantee table row/column order."
-            )
-        if policy.quality.warnings:
-            with st.expander("Extraction notes"):
-                for warning in policy.quality.warnings:
-                    st.markdown(f"- {warning}")
-
-
-def _render_question_area(policy: ProcessedPolicy) -> None:
-    st.markdown("## Ask about this policy")
-    st.caption("Suggested questions")
-    suggestion_columns = st.columns(2)
-    for index, suggestion in enumerate(SUGGESTED_QUESTIONS):
-        suggestion_columns[index % 2].button(
-            suggestion,
-            key=f"suggestion_{index}",
-            on_click=use_suggestion,
-            args=(suggestion,),
-            use_container_width=True,
-        )
-
-    question = st.text_area(
-        "Your question",
-        key=QUESTION_KEY,
-        height=96,
-        max_chars=MAX_QUESTION_CHARS,
-        placeholder="e.g. Is a pre-existing disease covered in month 20?",
-    )
-
-    cooldown = cooldown_remaining()
-    if cooldown > 0:
-        st.info(
-            f"The AI provider rate limit was reached. Try again in about "
-            f"{cooldown} seconds; CoverScope will not retry automatically."
-        )
-
-    ask_clicked = st.button(
-        "Ask CoverScope",
-        type="primary",
-        key="ask_button",
-    )
-    auto_ask = bool(st.session_state.pop(AUTO_ASK_KEY, False))
-
-    if ask_clicked or auto_ask:
-        if cooldown > 0:
-            st.warning("Please wait for the rate-limit cooldown before asking again.")
-        elif not question or not question.strip():
-            st.warning("Enter a question first.")
-        else:
-            run_question(policy, question.strip())
+_render_document_summary = render_document_card
+_render_question_area = render_question_composer
 
 
 def _render_answer(result: AnswerResult, question: str | None = None) -> None:
     vm = AnswerViewModel.from_result(result)
 
-    if vm.manual_review_required:
-        st.warning(MANUAL_REVIEW_MESSAGE, title="Manual review required", icon="⚠️")
-
-    badge = (
-        f'<span class="cs-badge {vm.verdict.badge_class}">'
-        f"{vm.verdict.display_label}</span>"
+    render_manual_review_banner(vm.manual_review_required, vm.citations_valid)
+    render_verdict_card(
+        vm.verdict,
+        manual_review_required=vm.manual_review_required,
+        citations_valid=vm.citations_valid,
     )
-    chip = (
-        '<span class="cs-chip cs-chip-warn">Manual review</span>'
-        if vm.manual_review_required
-        else '<span class="cs-chip cs-chip-ok">Citations verified</span>'
+    render_answer_summary(
+        vm.answer_text,
+        question=question,
+        is_not_stated=vm.verdict.is_not_stated,
     )
-    st.markdown(
-        f'<div class="cs-answer-head">{badge}{chip}</div>',
-        unsafe_allow_html=True,
-    )
-    st.caption(vm.verdict.summary_text)
-
-    if question:
-        st.caption(f"Question: {question}")
-    st.markdown("#### Answer")
-    st.markdown(vm.answer_text)
-
-    if vm.verdict.is_not_stated:
-        st.info(NOT_STATED_MESSAGE)
-
-    metric_columns = st.columns(3)
-    metric_columns[0].metric(
-        "Model-reported confidence",
+    render_confidence_metrics(
         vm.confidence_display,
-        help="Reported by the model. This is not a guarantee that the verdict is correct.",
+        citations_valid=vm.citations_valid,
+        cited_pages=vm.cited_pages_display,
     )
-    metric_columns[1].metric(
-        "Citation check",
-        "Verified" if vm.citations_valid else "Failed",
-        help="Every quotation is matched against the retrieved policy text.",
+    render_evidence_section(vm.citations)
+    render_caveats_and_warnings(
+        warnings=vm.warnings,
+        caveats=vm.caveats,
+        unverified_answer=vm.unverified_answer,
     )
-    metric_columns[2].metric(
-        "Cited pages",
-        vm.cited_pages_display,
-    )
-    st.caption(
-        "Confidence is reported by the model and is not a guarantee of correctness. "
-        "A valid quotation confirms the wording, not the coverage decision."
-    )
-
-    if vm.citations:
-        st.markdown("#### Cited evidence")
-        for citation in vm.citations:
-            with st.container(border=True):
-                st.markdown(
-                    f'<span class="cs-cite-meta">Page {citation.page_number} · '
-                    f"{citation.chunk_id}</span>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(blockquote(citation.quote))
-    else:
-        st.caption("No verified quotations were returned for this answer.")
-
-    if vm.warnings:
-        st.markdown("#### Verification warnings")
-        for warning in vm.warnings:
-            st.markdown(f"- {warning}")
-    if vm.caveats:
-        st.markdown("#### Policy caveats")
-        for caveat in vm.caveats:
-            st.markdown(f"- {caveat}")
-
-    if vm.unverified_answer:
-        with st.expander("Unverified model answer — not a coverage decision"):
-            st.write(vm.unverified_answer)
 
 
 def _render_answer_zone() -> None:
@@ -283,7 +163,7 @@ def _render_answer_zone() -> None:
     result = st.session_state.get(RESULT_KEY)
 
     if error:
-        st.error(error, title="Could not answer")
+        render_provider_error(error)
     if result:
         if error:
             st.markdown("#### Previous answer")
@@ -319,9 +199,9 @@ def main() -> None:
         if not st.session_state.get(DOC_ERROR_KEY):
             render_value_props()
     else:
-        _render_document_summary(policy)
+        render_document_card(policy)
         st.write("")
-        _render_question_area(policy)
+        render_question_composer(policy)
         st.divider()
         _render_answer_zone()
 
