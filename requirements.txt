@@ -1,4 +1,6 @@
-pymupdf>=1.24
+# Stay on the 1.x line: PyMuPDF 2.x pulls in the onnxruntime / pymupdf-layout
+# ML stack, which is large enough to get pip killed on small build instances.
+pymupdf>=1.24,<2.0
 pydantic>=2.7
 python-dotenv>=1.0
 pytest>=8.0

@@ -231,6 +231,17 @@ Because the React app is pre-compiled under `frontend/dist/`, running `python -m
 CoverScope is pre-configured for a modern decoupled cloud deployment:
 
 ### Backend Deployment (Render)
+
+**Option A — Docker (recommended; Render auto-detects the root `Dockerfile`)**
+1. Create a **Web Service** with runtime **Docker**. Leave Build/Start commands empty; the image's `CMD` reads Render's `$PORT`.
+2. Set the environment variables listed below.
+3. Set the health check path to `/api/v1/health`.
+
+> `pymupdf` is intentionally capped at `<2.0` in `requirements.txt`. PyMuPDF 2.x
+> pulls in `onnxruntime`, `numpy`, `pymupdf-layout`, and `pymupdf4llm`, which adds
+> roughly 170 MB and gets pip killed on small build instances.
+
+**Option B — native Python runtime**
 1. Link your repository to [Render](https://render.com) and create a **Web Service**.
 2. **Environment**: `Python 3`
 3. **Build Command**:
