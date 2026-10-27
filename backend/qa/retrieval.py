@@ -52,7 +52,12 @@ def _normalise_term(term: str) -> str:
 
 
 def _tokens(text: str) -> list[str]:
-    return [_normalise_term(token) for token in _TOKEN_RE.findall(search_text(text))]
+    """Tokenize, drop stop words first, then apply the tiny plural normalizer."""
+    return [
+        _normalise_term(token)
+        for token in _TOKEN_RE.findall(search_text(text))
+        if token not in STOP_WORDS
+    ]
 
 
 def extract_query_terms(question: str) -> list[str]:

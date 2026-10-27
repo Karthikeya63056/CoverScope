@@ -1,0 +1,386 @@
+"""Authentication service and credential validation boundary for CoverScope.
+
+This service establishes a production-grade authentication contract for CoverScope.
+It handles email format validation, credential verification rules, salted PBKDF2-SHA256
+password hashing, MongoDB Atlas account management, and session contracts without
+storing plaintext passwords.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from enum import Enum
+import hashlib
+import hmac
+import logging
+import os
+import re
+import secrets
+import time
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+_EMAIL_REGEX = re.compile(
+    r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$"
+)
+MIN_PASSWORD_LENGTH = 6
+
+
+def hash_password(password: str) -> str:
+    """Generate salted PBKDF2-SHA256 password hash."""
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return f"{salt}${dk.hex()}"
+
+
+def verify_password(password: str, hashed: str | None) -> bool:
+    """Verify password against salted PBKDF2-SHA256 hash."""
+    if not hashed or "$" not in hashed:
+        return False
+    try:
+        salt, dk_hex = hashed.split("$", 1)
+        computed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+        return hmac.compare_digest(computed.hex(), dk_hex)
+    except Exception:
+        return False
+
+
+class AuthStatus(str, Enum):
+    """Status outcomes from an authentication or validation attempt."""
+    AUTHENTICATED = "authenticated"
+    INVALID_CREDENTIALS = "invalid_credentials"
+    MISSING_FIELDS = "missing_fields"
+    INVALID_EMAIL = "invalid_email"
+    PASSWORD_TOO_SHORT = "password_too_short"
+    USER_NOT_FOUND = "user_not_found"
+    ACCOUNT_EXISTS = "account_exists"
+    PROVIDER_NOT_CONFIGURED = "provider_not_configured"
+    ACCOUNT_LOCKED = "account_locked"
+
+
+@dataclass(frozen=True)
+class AuthUser:
+    """An authenticated CoverScope user session identity."""
+    user_id: str
+    email: str
+    display_name: str
+    role: str = "policyholder"
+    authenticated_at: float = 0.0
+
+
+@dataclass(frozen=True)
+class AuthResult:
+    """Structured outcome of an authentication or credential submission."""
+    success: bool
+    status: AuthStatus
+    user: AuthUser | None = None
+    error_message: str | None = None
+    info_message: str | None = None
+
+
+class AuthService:
+    """Authentication and credential verification service."""
+
+    def __init__(self, *, provider_name: str | None = None) -> None:
+        self.provider_name = provider_name or os.getenv("COVERSCOPE_AUTH_PROVIDER", "mongodb_local")
+        # Offline session accounts. This store is intentionally process-local and
+        # only used when MongoDB is not configured, so registration and login
+        # still work together instead of silently discarding credentials.
+        self._local_users: dict[str, dict[str, str]] = {}
+
+    @staticmethod
+    def validate_email(email: str | None) -> tuple[bool, str | None]:
+        """Validate email format, returning (is_valid, sanitized_email_or_none)."""
+        if not email or not isinstance(email, str):
+            return False, None
+        cleaned = email.strip()
+        if not cleaned:
+            return False, None
+        if not _EMAIL_REGEX.match(cleaned):
+            return False, None
+        return True, cleaned
+
+    @staticmethod
+    def validate_password_syntax(password: str | None) -> tuple[bool, str | None]:
+        """Validate password format without logging or storing the secret."""
+        if not password or not isinstance(password, str):
+            return False, "Password is required."
+        if len(password) < MIN_PASSWORD_LENGTH:
+            return False, f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+        return True, None
+
+    @staticmethod
+    def _deterministic_offline_uid(email: str) -> str:
+        """Generate a stable, collision-resistant user id for offline session accounts."""
+        h = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()[:16]
+        return f"usr_{h}"
+
+    def register(
+        self,
+        email: str | None,
+        password: str | None,
+        display_name: str | None = None,
+    ) -> AuthResult:
+        """Register a new user account with salted password hash stored in MongoDB Atlas."""
+        is_email_valid, clean_email = self.validate_email(email)
+        if not is_email_valid or not clean_email:
+            return AuthResult(
+                success=False,
+                status=AuthStatus.INVALID_EMAIL,
+                error_message="Please enter a valid email address (e.g. name@domain.com).",
+            )
+
+        is_pw_valid, pw_err = self.validate_password_syntax(password)
+        if not is_pw_valid:
+            status = AuthStatus.PASSWORD_TOO_SHORT if pw_err and "characters" in pw_err else AuthStatus.MISSING_FIELDS
+            return AuthResult(
+                success=False,
+                status=status,
+                error_message=pw_err or "Please enter your password.",
+            )
+
+        name = (display_name or "").strip()
+        if not name:
+            name = clean_email.split("@")[0].replace(".", " ").title()
+
+        # Persist the account in MongoDB when available; otherwise keep it in
+        # this process's offline session store so login can succeed.
+        db = None
+        try:
+            from backend.database.client import get_database
+
+            db = get_database()
+        except Exception as exc:
+            logger.warning("Database availability check failed during registration: %s", exc)
+
+        password_hash = hash_password(password)
+        if db is not None:
+            try:
+                from backend.database.schema import COLL_USERS, init_db_indexes
+
+                init_db_indexes(db)
+                coll = db[COLL_USERS]
+                existing = coll.find_one({"email": clean_email.lower()})
+                if existing:
+                    return AuthResult(
+                        success=False,
+                        status=AuthStatus.ACCOUNT_EXISTS,
+                        error_message="An account with this email already exists. Please sign in.",
+                    )
+
+                now = datetime.now(timezone.utc)
+                doc = {
+                    "auth_provider": "local_password",
+                    "auth_provider_user_id": clean_email.lower(),
+                    "email": clean_email.lower(),
+                    "display_name": name,
+                    "role": "policyholder",
+                    "password_hash": password_hash,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                res = coll.insert_one(doc)
+                uid = str(res.inserted_id)
+            except Exception as exc:
+                logger.error("Database registration error: %s", exc)
+                return AuthResult(
+                    success=False,
+                    status=AuthStatus.PROVIDER_NOT_CONFIGURED,
+                    error_message=(
+                        "Your account could not be created because the account "
+                        "database is unavailable. Please try again."
+                    ),
+                )
+        else:
+            if clean_email.lower() in self._local_users:
+                return AuthResult(
+                    success=False,
+                    status=AuthStatus.ACCOUNT_EXISTS,
+                    error_message="An account with this email already exists. Please sign in.",
+                )
+            uid = self._deterministic_offline_uid(clean_email)
+            self._local_users[clean_email.lower()] = {
+                "email": clean_email.lower(),
+                "display_name": name,
+                "role": "policyholder",
+                "password_hash": password_hash,
+            }
+
+        user = AuthUser(
+            user_id=uid,
+            email=clean_email,
+            display_name=name,
+            role="policyholder",
+            authenticated_at=time.time(),
+        )
+        return AuthResult(
+            success=True,
+            status=AuthStatus.AUTHENTICATED,
+            user=user,
+            info_message=f"Account created successfully. Welcome, {user.display_name}!",
+        )
+
+    def authenticate(self, email: str | None, password: str | None) -> AuthResult:
+        """Authenticate user credentials against MongoDB Atlas or configured admin account."""
+        is_email_valid, clean_email = self.validate_email(email)
+        if not is_email_valid or not clean_email:
+            return AuthResult(
+                success=False,
+                status=AuthStatus.INVALID_EMAIL,
+                error_message="Please enter a valid email address (e.g. name@domain.com).",
+            )
+
+        is_pw_valid, pw_err = self.validate_password_syntax(password)
+        if not is_pw_valid:
+            status = AuthStatus.PASSWORD_TOO_SHORT if pw_err and "characters" in pw_err else AuthStatus.MISSING_FIELDS
+            return AuthResult(
+                success=False,
+                status=status,
+                error_message=pw_err or "Please enter your password.",
+            )
+
+        # 1. Check for administrator credentials. Both environment variables
+        # must be explicitly configured; there is no built-in default account.
+        admin_email = os.getenv("COVERSCOPE_ADMIN_EMAIL")
+        admin_pass = os.getenv("COVERSCOPE_ADMIN_PASSWORD")
+
+        if admin_email and admin_pass and clean_email.lower() == admin_email.strip().lower():
+            if password == admin_pass:
+                name_part = clean_email.split("@")[0].replace(".", " ").title()
+                user_id = self._deterministic_offline_uid(clean_email)
+
+                try:
+                    from backend.database.client import get_database
+                    from backend.database.repositories import UserRepository
+                    from backend.database.schema import init_db_indexes
+
+                    db = get_database()
+                    if db is not None:
+                        init_db_indexes(db)
+                        repo = UserRepository(db)
+                        db_user_id = repo.upsert_user(
+                            auth_provider="system_admin",
+                            auth_provider_user_id=clean_email,
+                            email=clean_email,
+                            display_name=name_part,
+                            role="administrator",
+                        )
+                        if db_user_id:
+                            user_id = db_user_id
+                except Exception:
+                    pass
+
+                user = AuthUser(
+                    user_id=user_id,
+                    email=clean_email,
+                    display_name=name_part,
+                    role="administrator",
+                    authenticated_at=time.time(),
+                )
+                return AuthResult(
+                    success=True,
+                    status=AuthStatus.AUTHENTICATED,
+                    user=user,
+                    info_message=f"Welcome back, {user.display_name}!",
+                )
+            else:
+                return AuthResult(
+                    success=False,
+                    status=AuthStatus.INVALID_CREDENTIALS,
+                    error_message="Invalid password. Please verify your credentials.",
+                )
+
+        # 2. Check for registered user in MongoDB Atlas
+        db = None
+        db_error = False
+        try:
+            from backend.database.client import get_database
+            from backend.database.schema import COLL_USERS
+
+            db = get_database()
+            if db is not None:
+                coll = db[COLL_USERS]
+                user_doc = coll.find_one({"email": clean_email.lower()})
+                if user_doc:
+                    pw_hash = user_doc.get("password_hash")
+                    if pw_hash and verify_password(password, pw_hash):
+                        user = AuthUser(
+                            user_id=str(user_doc["_id"]),
+                            email=user_doc.get("email", clean_email),
+                            display_name=user_doc.get("display_name", clean_email.split("@")[0].title()),
+                            role=user_doc.get("role", "policyholder"),
+                            authenticated_at=time.time(),
+                        )
+                        return AuthResult(
+                            success=True,
+                            status=AuthStatus.AUTHENTICATED,
+                            user=user,
+                            info_message=f"Welcome back, {user.display_name}!",
+                        )
+                    return AuthResult(
+                        success=False,
+                        status=AuthStatus.INVALID_CREDENTIALS,
+                        error_message="Incorrect password. Please verify your credentials.",
+                    )
+        except Exception as exc:
+            db_error = True
+            logger.warning("Database authentication lookup error: %s", exc)
+
+        # 3. Offline session accounts registered during this process lifetime.
+        local_user = self._local_users.get(clean_email.lower())
+        if local_user:
+            if verify_password(password, local_user.get("password_hash")):
+                user = AuthUser(
+                    user_id=self._deterministic_offline_uid(clean_email),
+                    email=local_user.get("email", clean_email),
+                    display_name=local_user.get("display_name", clean_email.split("@")[0].title()),
+                    role=local_user.get("role", "policyholder"),
+                    authenticated_at=time.time(),
+                )
+                return AuthResult(
+                    success=True,
+                    status=AuthStatus.AUTHENTICATED,
+                    user=user,
+                    info_message=f"Welcome back, {user.display_name}!",
+                )
+            return AuthResult(
+                success=False,
+                status=AuthStatus.INVALID_CREDENTIALS,
+                error_message="Incorrect password. Please verify your credentials.",
+            )
+
+        if db_error:
+            return AuthResult(
+                success=False,
+                status=AuthStatus.PROVIDER_NOT_CONFIGURED,
+                error_message=(
+                    "The authentication service is temporarily unavailable. "
+                    "Please try again in a moment."
+                ),
+            )
+
+        # 4. Fallback when user is not found
+        return AuthResult(
+            success=False,
+            status=AuthStatus.USER_NOT_FOUND,
+            error_message=(
+                "No account found with this email. "
+                "Please click 'Create an account' below to sign up."
+            ),
+        )
+
+    @staticmethod
+    def get_password_reset_notice(email: str | None) -> str:
+        """Provide honest password recovery notice."""
+        is_valid, clean = AuthService.validate_email(email)
+        if is_valid and clean:
+            return (
+                f"Password recovery requested for {clean}. "
+                "Self-service password recovery is managed by your policy administrator. "
+                "Please contact your administrator to reset your credentials."
+            )
+        return (
+            "Self-service password recovery is managed by your organization or policy administrator. "
+            "Please provide your registered email address or contact support."
+        )

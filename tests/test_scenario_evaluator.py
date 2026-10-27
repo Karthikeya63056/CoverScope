@@ -95,6 +95,30 @@ def test_ped_waiting_period_active():
     assert "pre-existing" in res.source_references[0]["quote"].lower()
 
 
+def test_ped_waiting_period_years_unit_properly_converted_to_months():
+    """Verify that DurationUnit.YEARS is properly converted to months (3 years -> 36 months)."""
+    text = (
+        "SECTION 2: WAITING PERIODS\n"
+        "Expenses related to the treatment of a pre-existing disease (PED) "
+        "shall be excluded until the expiry of 3 years of continuous coverage."
+    )
+    pol = _create_mock_policy("ped_3years_test.pdf", text)
+    evaluator = ScenarioEvaluator()
+
+    # User has 12 months continuous coverage (< 36 months, though > 3)
+    inp = ScenarioInput(
+        scenario_type=ScenarioType.PRE_EXISTING_CONDITION,
+        elapsed_months=12,
+    )
+    res = evaluator.evaluate(pol, inp)
+
+    assert res.verdict == ScenarioVerdict.WAITING_PERIOD_ACTIVE
+    assert res.applicable_duration_amount == 36
+    assert res.elapsed_duration_amount == 12
+    assert res.remaining_duration_amount == 24
+    assert "24 Months Remaining" in res.headline
+
+
 def test_ped_waiting_period_satisfied_not_unconditional_coverage():
     """Verify WAITING_PERIOD_SATISFIED verdict when elapsed duration >= waiting period, with explicit safeguards."""
     text = (

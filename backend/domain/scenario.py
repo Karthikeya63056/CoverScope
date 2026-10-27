@@ -6,6 +6,7 @@ Provides rule-based, evidence-grounded evaluation of policyholder scenarios
 from __future__ import annotations
 
 from datetime import date
+import re
 from typing import Any, Sequence
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, ConfigDict, Field
@@ -118,7 +119,13 @@ def calculate_elapsed_time(
 
     if user_elapsed_months is not None or user_elapsed_days is not None:
         notes.append("Duration supplied directly by user; inception and claim dates not verified.")
-        return (user_elapsed_months, user_elapsed_days, notes)
+        eff_months = user_elapsed_months
+        eff_days = user_elapsed_days
+        if eff_days is None and eff_months is not None:
+            eff_days = eff_months * 30
+        elif eff_months is None and eff_days is not None:
+            eff_months = eff_days // 30
+        return (eff_months, eff_days, notes)
 
     return (None, None, ["Neither calendar dates nor elapsed duration was supplied."])
 
@@ -262,7 +269,13 @@ class ScenarioEvaluator:
                 evidentiary_support=f"Base Policy Wording ({policy.filename}).",
             )
 
-        waiting_months = chosen_fact.structured_value.amount
+        dv = chosen_fact.structured_value
+        if dv.unit == DurationUnit.YEARS:
+            waiting_months = dv.amount * 12
+        elif dv.unit == DurationUnit.DAYS:
+            waiting_months = max(1, dv.amount // 30)
+        else:
+            waiting_months = dv.amount
         applicable_facts = [chosen_fact]
 
         # Step 2: Calculate elapsed months
@@ -380,7 +393,7 @@ class ScenarioEvaluator:
         initial_facts = [
             f for f in facts
             if f.category == FactCategory.WAITING_PERIOD
-            and ("initial" in f.proposition.lower() or (f.structured_value and getattr(f.structured_value, "unit", None) == DurationUnit.DAYS))
+            and ("initial" in f.proposition.lower() or (f.structured_value and getattr(f.structured_value, "unit", None) in (DurationUnit.DAYS, "days")))
             and f.validation_status != FactValidationStatus.REJECTED
         ]
 
@@ -518,21 +531,40 @@ class ScenarioEvaluator:
             and f.validation_status != FactValidationStatus.REJECTED
         ]
 
+        STOP_WORDS = {
+            "with", "from", "that", "this", "some", "have", "been", "were",
+            "what", "when", "where", "into", "over", "then", "also", "each",
+            "both", "such", "than", "more", "most", "only", "treatment",
+            "therapy", "disease", "condition", "disorder", "problem", "surgery"
+        }
+        tokens = [t for t in re.findall(r"\w+", query_condition) if t not in STOP_WORDS]
+
+        # 1. Check direct token overlap on substantive terms (len >= 3 or specific short clinical codes like 'hiv')
         matched_fact: PolicyFact | None = None
         for f in exclusion_facts:
             prop = f.proposition.lower()
-            if any(term in prop for term in query_condition.split() if len(term) > 3):
+            if any(t in prop for t in tokens if len(t) >= 3 or t in {"hiv", "std", "eye", "ent"}):
                 matched_fact = f
                 break
 
+        # 2. Check clinical synonym clusters
         if matched_fact is None:
-            # Fallback check against known keywords
-            if "alcohol" in query_condition or "substance" in query_condition:
-                matched_fact = next((f for f in exclusion_facts if "alcohol" in f.proposition.lower()), None)
-            elif "obesity" in query_condition or "bariatric" in query_condition or "weight" in query_condition:
-                matched_fact = next((f for f in exclusion_facts if "obesity" in f.proposition.lower()), None)
-            elif "diagnostic" in query_condition or "investigation" in query_condition:
-                matched_fact = next((f for f in exclusion_facts if "investigation" in f.proposition.lower()), None)
+            SYNONYMS = [
+                ("maternity", ["pregnancy", "maternity", "delivery", "childbirth", "caesarean", "antenatal", "postnatal"]),
+                ("alcohol", ["alcohol", "alcoholism", "substance", "drug addiction", "narcotic", "intoxication"]),
+                ("obesity", ["obesity", "weight loss", "bariatric", "weight control"]),
+                ("cosmetic", ["cosmetic", "plastic surgery", "aesthetic", "reconstructive"]),
+                ("investigation", ["investigation", "diagnostic", "evaluation", "screening", "checkup"]),
+                ("dental", ["dental", "teeth", "oral", "orthodontic"]),
+            ]
+            for key, group_words in SYNONYMS:
+                if any(w in query_condition for w in group_words):
+                    matched_fact = next(
+                        (f for f in exclusion_facts if any(w in f.proposition.lower() for w in group_words)),
+                        None,
+                    )
+                    if matched_fact:
+                        break
 
         if matched_fact is None:
             return ScenarioResult(
@@ -625,6 +657,20 @@ class ScenarioEvaluator:
         claim_amt = scenario_input.claim_amount
         applicable_facts = [chosen_fact]
 
+        # Dynamically extract age threshold from fact proposition or conditions
+        threshold = 61
+        combined_text = f"{chosen_fact.proposition} {' '.join(chosen_fact.conditions)}"
+        m_thresh = re.search(
+            r"(?:aged|age\s+at\s+entry|entry\s+age|age|insured\s+persons?)\s*(?:is|of|exceeding|above|>=)?\s*(\d{2})\s*(?:years|yrs|\+)?",
+            combined_text,
+            re.IGNORECASE,
+        )
+        if m_thresh:
+            try:
+                threshold = int(m_thresh.group(1))
+            except ValueError:
+                threshold = 61
+
         if entry_age is None:
             return ScenarioResult(
                 scenario_id=f"scen_copay_{policy.fingerprint[:8]}",
@@ -634,7 +680,7 @@ class ScenarioEvaluator:
                 decision_state=DecisionIntegrityState.EVIDENCE_INSUFFICIENT,
                 headline="Member Entry Age Required",
                 explanation=(
-                    f"The policy specifies a {pct:g}% co-payment based on entry age (typically 61+ years). "
+                    f"The policy specifies a {pct:g}% co-payment based on entry age (entry age threshold: {threshold}+ years). "
                     "Please provide the insured person's age at the time of entry to evaluate applicability."
                 ),
                 copayment_percentage=pct,
@@ -644,13 +690,6 @@ class ScenarioEvaluator:
                 limitations=("Cannot evaluate co-payment applicability without entry age.",),
                 evidentiary_support=f"Base Policy Wording ({policy.filename}).",
             )
-
-        # Threshold evaluation (standard Indian health policy threshold is 61 years)
-        threshold = 61
-        for cond in chosen_fact.conditions:
-            if "61" in cond:
-                threshold = 61
-                break
 
         if entry_age < threshold:
             return ScenarioResult(

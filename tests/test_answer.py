@@ -144,6 +144,16 @@ def test_short_quotation_is_rejected():
     assert result.manual_review_required
 
 
+@pytest.mark.parametrize("degenerate_quote", [".", "...", "a", ".,.", "short"])
+def test_degenerate_punctuation_and_empty_quotes_are_rejected(degenerate_quote):
+    client = FakeClient(model_payload("excluded", quote=degenerate_quote))
+    result = answer_question("Is a pre-existing disease covered?", [EXCLUSION], client)
+
+    assert not result.citations_valid
+    assert result.manual_review_required
+    assert any("too short or lacks substantive text" in w for w in result.warnings)
+
+
 def test_definitive_verdict_without_citations_is_not_accepted():
     client = FakeClient(model_payload("covered", chunk_id=None))
     result = answer_question("Are outpatient consultations covered?", [COVER], client)

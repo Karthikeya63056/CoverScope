@@ -1,0 +1,14 @@
+{
+  "name": "coverscope",
+  "version": "3.2.0",
+  "private": true,
+  "description": "CoverScope Health Insurance Policy Intelligence Platform (React + FastAPI + MongoDB Atlas)",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "start:backend": "python -m backend.main",
+    "test:backend": "pytest",
+    "test:db": "python scripts/healthcheck_db.py"
+  }
+}

@@ -31,7 +31,7 @@ from backend.qa.schemas import ANSWER_JSON_SCHEMA
 DEFAULT_MODEL = "openai/gpt-oss-120b"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
-DEFAULT_MAX_COMPLETION_TOKENS = 1_200
+DEFAULT_MAX_COMPLETION_TOKENS = 2_500
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_REASONING_EFFORT = "low"
 
@@ -132,12 +132,30 @@ class GroqClient:
 
         if not content or not content.strip():
             raise LLMResponseError("Groq returned an empty response.")
+
+        raw_text = content.strip()
+        if raw_text.startswith("```"):
+            import re
+            m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_text)
+            if m:
+                raw_text = m.group(1).strip()
+
         try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise LLMResponseError(
-                "Groq returned a response that was not valid JSON."
-            ) from exc
+            parsed = json.loads(raw_text)
+        except json.JSONDecodeError:
+            first_brace = raw_text.find("{")
+            last_brace = raw_text.rfind("}")
+            if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                try:
+                    parsed = json.loads(raw_text[first_brace : last_brace + 1])
+                except json.JSONDecodeError as exc:
+                    raise LLMResponseError(
+                        "Groq returned a response that was not valid JSON."
+                    ) from exc
+            else:
+                raise LLMResponseError(
+                    "Groq returned a response that was not valid JSON."
+                )
         if not isinstance(parsed, dict):
             raise LLMResponseError("Groq returned JSON that is not an object.")
         return parsed

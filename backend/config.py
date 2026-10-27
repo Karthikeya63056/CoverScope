@@ -19,7 +19,7 @@ DEFAULT_RETRIEVAL_TOP_K = 5
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 DEFAULT_GROQ_TIMEOUT_SECONDS = 30.0
 
-DEFAULT_GROQ_MAX_COMPLETION_TOKENS = 1_200
+DEFAULT_GROQ_MAX_COMPLETION_TOKENS = 2_500
 
 
 def _positive_int(name: str, default: int) -> int:
@@ -84,6 +84,15 @@ class Settings:
     # noisy heuristic table-review flags in quality_checks.
     unreliable_pages: tuple[int, ...] = parse_page_selection(
         os.getenv("COVERSCOPE_UNRELIABLE_PAGES")
+    )
+    # MongoDB Atlas configuration (optional; falls back to in-memory session mode when unset)
+    mongodb_uri: str | None = os.getenv("MONGODB_URI")
+    mongodb_database: str = _non_empty("MONGODB_DATABASE", "coverscope")
+    mongodb_server_selection_timeout_ms: int = _positive_int(
+        "COVERSCOPE_MONGODB_TIMEOUT_MS", 10000
+    )
+    mongodb_connect_timeout_ms: int = _positive_int(
+        "COVERSCOPE_MONGODB_CONNECT_TIMEOUT_MS", 10000
     )
 
 

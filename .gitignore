@@ -7,3 +7,7 @@ __pycache__/
 .DS_Store
 sample_data/*.pdf
 evaluation/results.json
+node_modules/
+dist/
+.vite/
+data/

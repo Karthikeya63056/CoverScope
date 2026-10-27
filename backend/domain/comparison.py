@@ -12,6 +12,7 @@ from backend.domain.adapter import extract_candidate_facts
 from backend.domain.enums import (
     ComparisonDimensionKey,
     ComparisonStatus,
+    DurationUnit,
     FactCategory,
     FactValidationStatus,
     ProtectionGapSeverity,
@@ -242,17 +243,28 @@ class PolicyComparisonEngine:
             if not isinstance(primary_fact.structured_value, DurationValue):
                 return self._missing_dimension(dimension_key, label, policy)
 
-            amount = primary_fact.structured_value.amount
-            disp = f"{amount} months"
+            dv = primary_fact.structured_value
+            amount = dv.amount
+            unit = getattr(dv, "unit", DurationUnit.MONTHS)
+            months = amount * 12 if unit == DurationUnit.YEARS else (max(1, amount // 30) if unit == DurationUnit.DAYS else amount)
+            if unit == DurationUnit.YEARS:
+                disp = f"{amount} years ({months} months)"
+            elif unit == DurationUnit.DAYS:
+                disp = f"{amount} days ({months} months)"
+            else:
+                disp = f"{amount} months"
+
             conds: list[str] = list(primary_fact.conditions)
             if rider_fact and isinstance(rider_fact.structured_value, DurationValue):
-                rider_amt = rider_fact.structured_value.amount
+                rdv = rider_fact.structured_value
+                rd_months = rdv.amount * 12 if rdv.unit == DurationUnit.YEARS else rdv.amount
+                rd_disp = f"{rd_months} months" if rdv.unit == DurationUnit.MONTHS else f"{rdv.amount} {rdv.unit.value} ({rd_months} months)"
                 has_sched_rider = bool(schedule and getattr(schedule, "optional_riders", None) and any("ped" in r.lower() or "pre-existing" in r.lower() for r in schedule.optional_riders))
                 if has_sched_rider:
-                    disp = f"{rider_amt} months (Rider Endorsement Confirmed on Schedule)"
+                    disp = f"{rd_disp} (Rider Endorsement Confirmed on Schedule)"
                     conds.append("Confirmed on Policy Schedule: PED waiting period modification rider active")
                 else:
-                    disp += f" (Optional rider: {rider_amt} months)"
+                    disp += f" (Optional rider: {rd_disp})"
                     conds.append("Optional buy-back cover reduces waiting period upon schedule endorsement")
 
             ev = primary_fact.evidence_references[0] if primary_fact.evidence_references else None
@@ -263,7 +275,7 @@ class PolicyComparisonEngine:
                 policy_filename=policy.filename,
                 is_available=True,
                 display_value=disp,
-                numeric_amount=float(amount),
+                numeric_amount=float(months),
                 unit="months",
                 fact_id=primary_fact.fact_id,
                 validation_status=primary_fact.validation_status,
@@ -276,7 +288,7 @@ class PolicyComparisonEngine:
             initial_facts = [
                 f for f in facts
                 if f.category == FactCategory.WAITING_PERIOD
-                and ("initial" in f.proposition.lower() or (f.structured_value and getattr(f.structured_value, "unit", None) == "days"))
+                and ("initial" in f.proposition.lower() or (f.structured_value and getattr(f.structured_value, "unit", None) in (DurationUnit.DAYS, "days")))
                 and f.validation_status != FactValidationStatus.REJECTED
             ]
             if not initial_facts:
@@ -312,7 +324,21 @@ class PolicyComparisonEngine:
                 return self._missing_dimension(dimension_key, label, policy)
 
             fact = specific_facts[0]
-            amount = getattr(fact.structured_value, "amount", 24)
+            dv = getattr(fact, "structured_value", None)
+            if isinstance(dv, DurationValue):
+                unit = getattr(dv, "unit", DurationUnit.MONTHS)
+                months = dv.amount * 12 if unit == DurationUnit.YEARS else (max(1, dv.amount // 30) if unit == DurationUnit.DAYS else dv.amount)
+                if unit == DurationUnit.YEARS:
+                    disp_val = f"{dv.amount} years ({months} months)"
+                elif unit == DurationUnit.DAYS:
+                    disp_val = f"{dv.amount} days ({months} months)"
+                else:
+                    disp_val = f"{dv.amount} months"
+                numeric_val = float(months)
+            else:
+                numeric_val = 24.0
+                disp_val = "24 months"
+
             ev = fact.evidence_references[0] if fact.evidence_references else None
             return PolicyDimensionValue(
                 dimension_key=dimension_key,
@@ -320,8 +346,8 @@ class PolicyComparisonEngine:
                 policy_fingerprint=policy.fingerprint,
                 policy_filename=policy.filename,
                 is_available=True,
-                display_value=f"{amount} months",
-                numeric_amount=float(amount),
+                display_value=disp_val,
+                numeric_amount=numeric_val,
                 unit="months",
                 fact_id=fact.fact_id,
                 validation_status=fact.validation_status,

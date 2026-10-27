@@ -50,12 +50,13 @@ Rules:
    this does not establish that the benefit is excluded.
 6. Never claim that an expense is covered merely because no exclusion was
    retrieved.
-7. Cite only chunk IDs that appear in EVIDENCE. Each quote must be a short,
-   contiguous, verbatim substring of the SAME evidence block identified by its
-   chunk_id. Copy the chunk ID exactly from the bracket header immediately above
-   the quoted text. Do not combine text from different blocks, and omit a
-   citation if you cannot identify the block containing the quote. Never
-   fabricate quotations, chunk IDs, or page numbers.
+7. Cite only chunk IDs that appear in EVIDENCE. Each quote must be a short
+   (under 25 words), contiguous, verbatim substring of the SAME evidence block
+   identified by its chunk_id. Do not concatenate distant table cells or separate
+   sentences with ellipses (...). Copy the chunk ID exactly from the bracket
+   header immediately above the quoted text. Do not combine text from different
+   blocks, and omit a citation if you cannot identify the block containing the
+   quote. Never fabricate quotations, chunk IDs, or page numbers.
 8. Prefer abstention over an unsupported definitive coverage decision.
 9. If an optional endorsement, rider, or waiting-period modification in the
    evidence could change the answer and the user has not stated whether it
@@ -162,13 +163,57 @@ def verify_citations(
             )
             continue
 
-        quote_key = normalize_for_match(citation.quote)
-        if len(quote_key) < MIN_QUOTE_MATCH_CHARS:
+        s_norm = normalize_for_match(source.text)
+        quote_norm = normalize_for_match(citation.quote)
+
+        # Enforce substantive quote length to reject punctuation, single letters, or degenerate quotes
+        if len(quote_norm) < MIN_QUOTE_MATCH_CHARS:
             problems.append(
-                f"Quotation for {citation.chunk_id} is too short to verify."
+                f"Quotation for {citation.chunk_id} is too short or lacks substantive text (minimum {MIN_QUOTE_MATCH_CHARS} characters required)."
             )
             continue
-        if quote_key not in normalize_for_match(source.text):
+
+        matched = quote_norm in s_norm
+        if not matched and ("..." in citation.quote or "\u2026" in citation.quote):
+            import re
+            parts = re.split(r"\s*(?:\.{3,}|\u2026)\s*", citation.quote)
+            clean_parts = [p.strip() for p in parts if len(normalize_for_match(p)) >= 6]
+            if clean_parts and sum(len(normalize_for_match(cp)) for cp in clean_parts) >= MIN_QUOTE_MATCH_CHARS:
+                matched = all(
+                    normalize_for_match(cp) in s_norm
+                    for cp in clean_parts
+                )
+            else:
+                matched = False
+
+        if not matched:
+            # Tolerant match for multi-column table extraction interleaving in PDFs
+            import re
+            q_tokens = [w for w in re.findall(r"\w+", citation.quote.lower()) if len(w) > 1]
+            t_tokens = [w for w in re.findall(r"\w+", source.text.lower()) if len(w) > 1]
+            if len(q_tokens) >= 4 and len(quote_norm) >= MIN_QUOTE_MATCH_CHARS:
+                for i, tw in enumerate(t_tokens):
+                    if tw == q_tokens[0]:
+                        qi = 0
+                        ti = i
+                        curr_gap = 0
+                        total_gap = 0
+                        while qi < len(q_tokens) and ti < len(t_tokens):
+                            if q_tokens[qi] == t_tokens[ti]:
+                                qi += 1
+                                ti += 1
+                                curr_gap = 0
+                            else:
+                                curr_gap += 1
+                                total_gap += 1
+                                if curr_gap > 10 or total_gap > 15:
+                                    break
+                                ti += 1
+                        if qi == len(q_tokens):
+                            matched = True
+                            break
+
+        if not matched:
             problems.append(
                 f"Quotation for {citation.chunk_id} does not match the source text."
             )
@@ -244,17 +289,23 @@ def answer_question(
     if not citations_valid:
         manual_review_required = True
         confidence = "low"
-        if verdict != "not_stated":
-            verdict = "depends"
-        answer = (
-            "CoverScope could not verify the model's citations against the "
-            "policy text. Please review the cited pages manually."
-        )
-        unverified_answer = model.answer
-        caveats.append(
-            "The model's answer is unverified and must not be treated as a "
-            "coverage decision."
-        )
+        if not verified:
+            if verdict != "not_stated":
+                verdict = "depends"
+            answer = (
+                "CoverScope could not verify the model's citations against the "
+                "policy text. Please review the cited pages manually."
+            )
+            unverified_answer = model.answer
+            caveats.append(
+                "The model's answer is unverified and must not be treated as a "
+                "coverage decision."
+            )
+        else:
+            caveats.append(
+                "Some citations could not be verified automatically against the "
+                "extracted text. Please review the flagged citations manually."
+            )
     else:
         flagged_pages = sorted(
             {

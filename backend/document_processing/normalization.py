@@ -12,7 +12,7 @@ import unicodedata
 # remove hyphens when checking a quotation.
 _LINE_BREAK_HYPHEN = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
 _WHITESPACE = re.compile(r"\s+")
-_MATCH_IGNORED = re.compile(r"[\s\-\u00ad]+")
+_MATCH_IGNORED = re.compile(r"[\s\-\u00ad\'\"\u2018\u2019\u201c\u201d\`\ufffd\u2022\u25cf\u25aa\.]+")
 # Models frequently emit typographic hyphens/dashes where the PDF has "-".
 _DASH_TRANSLATION = str.maketrans(
     {
@@ -47,9 +47,15 @@ def normalize_for_match(text: str) -> str:
     """Casefold and remove whitespace/hyphens for tolerant quote matching.
 
     Two renderings of the same clause must compare equal even when one has a
-    line-break hyphen, a soft hyphen, or different spacing.
+    line-break hyphen, a soft hyphen, smart quotes, or different spacing/currency.
     """
-    return _MATCH_IGNORED.sub("", normalize_text(text).casefold())
+    normalized = normalize_text(text).casefold()
+    normalized = (
+        normalized.replace("\u20b9", "rs")
+        .replace("\u20a8", "rs")
+        .replace("inr", "rs")
+    )
+    return _MATCH_IGNORED.sub("", normalized)
 
 
 def search_text(text: str) -> str:

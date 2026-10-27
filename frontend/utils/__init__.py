@@ -1,1 +1,0 @@
-"""CoverScope frontend utility helpers."""

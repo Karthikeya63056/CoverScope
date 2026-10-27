@@ -82,11 +82,21 @@ _MONETARY_SUBLIMIT_RE = re.compile(
     re.IGNORECASE,
 )
 
+_EXCLUSION_ITEMS_PATTERN = (
+    r"(alcoholism|drug\s+addiction|substance\s+abuse|cosmetic\s+surgery|"
+    r"hazardous\s+sports|weight\s+loss\s+surgery|obesity(?:\s*[/&]|\s+and)?\s*weight\s+control(?: surgery)?|"
+    r"obesity|investigation\s+&\s+evaluation|rest\s+cure|rehabilitation\s+and\s+respite\s+care)"
+)
+
 _EXCLUSION_CLAUSE_RE = re.compile(
-    r"(?:treatment\s+for[,.\s]+)?(alcoholism|drug\s+addiction|substance\s+abuse|cosmetic\s+surgery|hazardous\s+sports|weight\s+loss\s+surgery|obesity\s*/\s*weight\s+control|investigation\s+&\s+evaluation|rest\s+cure|rehabilitation\s+and\s+respite\s+care)"
-    r"[^.\n]{0,120}?(?:is\s+excluded|not\s+covered|shall\s+not\s+be\s+payable|exclusion)"
-    r"|(?:treatment\s+for[,.\s]+)?(alcoholism|drug\s+addiction|substance\s+abuse|cosmetic\s+surgery|hazardous\s+sports|weight\s+loss\s+surgery|obesity\s*/\s*weight\s+control|investigation\s+&\s+evaluation|rest\s+cure|rehabilitation\s+and\s+respite\s+care)"
-    r"[^)]{0,120}?\(?Code[- ]?\s*Excl\d{2}\)?",
+    _EXCLUSION_ITEMS_PATTERN
+    + r"[^\n]{0,140}?(?:is\s+excluded|are\s+excluded|not\s+covered|shall\s+not\s+be\s+payable|shall\s+not\s+be\s+covered|shall\s+not\s+be\s+admissible|exclusion|\(?Code[- ]?\s*Excl\d{2}\)?)",
+    re.IGNORECASE,
+)
+
+_EXCLUSION_PREFIX_RE = re.compile(
+    r"(?:the\s+following\s+(?:are|is)\s+excluded|exclusions?|not\s+covered|policy\s+excludes|excludes?|excluding|shall\s+not\s+(?:cover|pay\s+for|be\s+liable\s+for)|expenses\s+related\s+to\s+(?:the\s+)?treatment\s+of|treatment\s+(?:of|for))[,\s:]+[^\n]{0,120}?"
+    + _EXCLUSION_ITEMS_PATTERN,
     re.IGNORECASE,
 )
 
@@ -585,62 +595,113 @@ def extract_candidate_facts(policy: ProcessedPolicy) -> list[PolicyFact]:
         # ---------------------------------------------------------------------
         # 6. Exclusions (with Exception Handling)
         # ---------------------------------------------------------------------
-        for match in _EXCLUSION_CLAUSE_RE.finditer(text):
+        seen_exclusion_spans: set[tuple[int, int]] = set()
+        exclusion_matches = []
+        for rx in (_EXCLUSION_CLAUSE_RE, _EXCLUSION_PREFIX_RE):
+            for match in rx.finditer(text):
+                span = (match.start(), match.end())
+                if not any(abs(span[0] - s[0]) < 10 for s in seen_exclusion_spans):
+                    seen_exclusion_spans.add(span)
+                    exclusion_matches.append(match)
+
+        seen_item_keys: set[str] = set()
+        for match in exclusion_matches:
+            # Extract sentence/clause bounds to uncover any coordinate items in the same exclusion statement
+            start_sent = max(
+                text.rfind("\n", 0, match.start()),
+                text.rfind(".", 0, match.start()),
+            )
+            start_sent = 0 if start_sent == -1 else start_sent + 1
+
+            dot_pos = text.find(".", match.end())
+            nl_pos = text.find("\n", match.end())
+            if dot_pos != -1 and nl_pos != -1:
+                end_sent = min(dot_pos, nl_pos) + 1
+            elif dot_pos != -1:
+                end_sent = dot_pos + 1
+            elif nl_pos != -1:
+                end_sent = nl_pos + 1
+            else:
+                end_sent = min(len(text), match.end() + 100)
+
+            sentence_text = text[start_sent:end_sent].strip()
             span_text = match.group(0).strip()
-            item = match.group(1) or match.group(2)
-            if not item:
-                continue
+
+            # Discover all distinct items within the exclusion sentence or matching span
+            extracted_items: list[str] = []
+            for im in re.finditer(_EXCLUSION_ITEMS_PATTERN, sentence_text, re.IGNORECASE):
+                cand = im.group(0).strip()
+                superseded = False
+                for idx, existing in enumerate(extracted_items):
+                    if existing.lower() in cand.lower():
+                        extracted_items[idx] = cand
+                        superseded = True
+                        break
+                    elif cand.lower() in existing.lower():
+                        superseded = True
+                        break
+                if not superseded:
+                    extracted_items.append(cand)
+
+            if not extracted_items and match.group(1):
+                extracted_items = [match.group(1).strip()]
 
             start_ctx = max(0, match.start() - 50)
             end_ctx = min(len(text), match.end() + 250)
             surrounding = text[start_ctx:end_ctx]
             is_cond, cond_triggers = _has_conditional_trigger(surrounding)
 
-            status = FactValidationStatus.EVIDENCE_GROUNDED
-            review_reasons: list[str] = []
-            exceptions: list[str] = []
+            for item in extracted_items:
+                item_key = f"{page.page_number}:{item.lower()}"
+                if item_key in seen_item_keys:
+                    continue
+                seen_item_keys.add(item_key)
 
-            # Check for clinical exceptions (e.g. obesity surgery criteria, reconstructive cosmetic)
-            if "obesity" in item.lower() or "weight" in item.lower():
-                if "bmi" in surrounding.lower() or "clinical protocols" in surrounding.lower():
+                status = FactValidationStatus.EVIDENCE_GROUNDED
+                review_reasons: list[str] = []
+                exceptions: list[str] = []
+
+                # Check for clinical exceptions (e.g. obesity surgery criteria, reconstructive cosmetic)
+                if "obesity" in item.lower() or "weight" in item.lower():
+                    if "bmi" in surrounding.lower() or "clinical protocols" in surrounding.lower():
+                        status = FactValidationStatus.NEEDS_REVIEW
+                        review_reasons.append("Conditional exclusion with clinical exceptions (BMI/protocols)")
+                        exceptions.append("Surgeries meeting medical necessity and BMI criteria are eligible")
+
+                if "cosmetic" in item.lower() and ("accident" in surrounding.lower() or "burn" in surrounding.lower() or "cancer" in surrounding.lower()):
                     status = FactValidationStatus.NEEDS_REVIEW
-                    review_reasons.append("Conditional exclusion with clinical exceptions (BMI/protocols)")
-                    exceptions.append("Surgeries meeting medical necessity and BMI criteria are eligible")
+                    review_reasons.append("Conditional exception for reconstructive surgery following accident/cancer")
+                    exceptions.append("Reconstructive surgery required following accident, burn, or cancer")
 
-            if "cosmetic" in item.lower() and ("accident" in surrounding.lower() or "burn" in surrounding.lower() or "cancer" in surrounding.lower()):
-                status = FactValidationStatus.NEEDS_REVIEW
-                review_reasons.append("Conditional exception for reconstructive surgery following accident/cancer")
-                exceptions.append("Reconstructive surgery required following accident, burn, or cancer")
+                if is_cond and status != FactValidationStatus.NEEDS_REVIEW:
+                    status = FactValidationStatus.NEEDS_REVIEW
+                    review_reasons.append(f"Conditional phrasing in clause ({', '.join(cond_triggers)})")
 
-            if is_cond and status != FactValidationStatus.NEEDS_REVIEW:
-                status = FactValidationStatus.NEEDS_REVIEW
-                review_reasons.append(f"Conditional phrasing in clause ({', '.join(cond_triggers)})")
-
-            is_grounded = normalize_for_match(span_text) in norm_page_text
-            ev = EvidenceReference(
-                evidence_id=f"ev_{doc_id[:8]}_p{page.page_number}_f{fact_idx}",
-                document_id=doc_id,
-                page_number=page.page_number,
-                exact_text=span_text,
-                validation_status=status,
-            )
-
-            facts.append(
-                PolicyFact(
-                    fact_id=f"fact_{doc_id[:8]}_{fact_idx:03d}",
+                is_grounded = normalize_for_match(span_text) in norm_page_text
+                ev = EvidenceReference(
+                    evidence_id=f"ev_{doc_id[:8]}_p{page.page_number}_f{fact_idx}",
                     document_id=doc_id,
-                    category=FactCategory.EXCLUSION,
-                    proposition=f"Exclusion provision for {item.strip()} on page {page.page_number}.",
-                    evidence_references=(ev,),
-                    exceptions=tuple(exceptions),
-                    extraction_method=ExtractionMethod.HEURISTIC,
+                    page_number=page.page_number,
+                    exact_text=span_text,
                     validation_status=status,
-                    is_evidence_grounded=is_grounded,
-                    semantic_status="unreviewed" if not exceptions else "ambiguous",
-                    review_reasons=tuple(review_reasons),
                 )
-            )
-            fact_idx += 1
+
+                facts.append(
+                    PolicyFact(
+                        fact_id=f"fact_{doc_id[:8]}_{fact_idx:03d}",
+                        document_id=doc_id,
+                        category=FactCategory.EXCLUSION,
+                        proposition=f"Exclusion provision for {item.strip()} on page {page.page_number}.",
+                        evidence_references=(ev,),
+                        exceptions=tuple(exceptions),
+                        extraction_method=ExtractionMethod.HEURISTIC,
+                        validation_status=status,
+                        is_evidence_grounded=is_grounded,
+                        semantic_status="unreviewed" if not exceptions else "ambiguous",
+                        review_reasons=tuple(review_reasons),
+                    )
+                )
+                fact_idx += 1
 
         # ---------------------------------------------------------------------
         # 7. Monetary Sublimits
