@@ -1,0 +1,225 @@
+[
+  {
+    "id": "gold_01",
+    "document_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "page_number": 10,
+    "quote": "30-day waiting period (Code- Excl03): \na. Expenses related to the treatment of any Illness within 30 days from the \ufb01rst Policy",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 30,
+      "unit": "days"
+    },
+    "conditions": [],
+    "expected_status": "evidence_grounded",
+    "notes": "Standard 30-day initial waiting period under IRDAI Code-Excl03."
+  },
+  {
+    "id": "gold_02",
+    "document_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "page_number": 11,
+    "quote": "5.1.11. \nTreatment for, alcoholism, drug or substance abuse or any addictive condition and consequences thereof. (Code-Excl12)",
+    "category": "exclusion",
+    "expected_value": null,
+    "conditions": [],
+    "expected_status": "evidence_grounded",
+    "notes": "Unconditional standard exclusion for alcoholism and substance abuse under Code-Excl12."
+  },
+  {
+    "id": "gold_03",
+    "document_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "page_number": 11,
+    "quote": "5.1.6. \nObesity/ Weight Control (Code-Excl06)\nExpenses related to the surgical treatment of obesity that does not ful\ufb01l all the below conditions:\na.\nSurgery to be conducted is upon the advice of the Doctor.\nb. The surgery/Procedure conducted should be supported by clinical protocols.\nc.\nThe member has to be 18 years of age or older and;\nd.\nBody Mass Index (BMI);\ni.\ngreater than or equal to 40 or\nii. greater than or equal to 35 in conjunction with any of the following severe co-morbidities",
+    "category": "exclusion",
+    "expected_value": null,
+    "conditions": [
+      "Surgery on Doctor advice",
+      "Age >= 18",
+      "BMI >= 40 or BMI >= 35 with co-morbidities"
+    ],
+    "expected_status": "needs_review",
+    "notes": "Conditional exclusion with clinical exceptions. Cannot be extracted as an absolute exclusion."
+  },
+  {
+    "id": "gold_04",
+    "document_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "page_number": 10,
+    "quote": "4.20.Pre-Existing Disease Waiting Time Modi\ufb01cation\nYou can choose to reduce or completely remove the Pre-Existing Disease waiting time. Once you opt this bene\ufb01t, it CAN NOT be reduced further.",
+    "category": "waiting_period",
+    "expected_value": null,
+    "conditions": [
+      "Optional modification rider purchased"
+    ],
+    "expected_status": "needs_review",
+    "notes": "Optional modification benefit that alters PED waiting time if opted. Requires review."
+  },
+  {
+    "id": "gold_05",
+    "document_file": "pdfs/optima-secure-revision-pw.pdf",
+    "page_number": 28,
+    "quote": "a. \nPre-Existing Diseases: Code \u2013 Excl01 \ni. \nExpenses related to the treatment of a pre-existing disease (PED) and its direct \ncomplications shall be excluded until the expiry of 36 months (Unless specified otherwise in \nthe Policy Schedule) of continuous coverage",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 36,
+      "unit": "months"
+    },
+    "conditions": [
+      "Continuous coverage required",
+      "Unless specified otherwise in Policy Schedule"
+    ],
+    "expected_status": "evidence_grounded",
+    "notes": "Contractual 36-month PED waiting period under Code-Excl01."
+  },
+  {
+    "id": "gold_06",
+    "document_file": "pdfs/optima-secure-revision-pw.pdf",
+    "page_number": 28,
+    "quote": "b. \nSpecified Disease/Procedure waiting period: Code \u2013 Excl02 \ni. \nExpenses related to the treatment of the listed Conditions, surgeries/treatments shall be \nexcluded until the expiry of 24 months of continuous coverage",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 24,
+      "unit": "months"
+    },
+    "conditions": [
+      "Listed conditions/surgeries",
+      "Does not apply to accidents"
+    ],
+    "expected_status": "evidence_grounded",
+    "notes": "24-month waiting period for specified diseases and procedures under Code-Excl02."
+  },
+  {
+    "id": "gold_07",
+    "document_file": "pdfs/optima-secure-revision-pw.pdf",
+    "page_number": 30,
+    "quote": "c. \n30-day waiting period: Code \u2013 Excl03 \ni. \nExpenses related to the treatment of any illness within 30 days from the first Policy \ncommencement date shall be excluded",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 30,
+      "unit": "days"
+    },
+    "conditions": [
+      "First policy commencement",
+      "Does not apply to accident claims"
+    ],
+    "expected_status": "evidence_grounded",
+    "notes": "30-day initial waiting period under Code-Excl03."
+  },
+  {
+    "id": "gold_08",
+    "document_file": "pdfs/optima-secure-revision-pw.pdf",
+    "page_number": 30,
+    "quote": "2. \nStandard Exclusions \na. \nInvestigation & Evaluation: Code Excl04 \ni. \nExpenses related to any admission primarily for diagnostics and evaluation purposes only \nare excluded.",
+    "category": "exclusion",
+    "expected_value": null,
+    "conditions": [],
+    "expected_status": "evidence_grounded",
+    "notes": "Standard exclusion for diagnostic and evaluation admissions under Code-Excl04."
+  },
+  {
+    "id": "gold_09",
+    "document_file": "pdfs/optima-secure-revision-pw.pdf",
+    "page_number": 28,
+    "quote": "Base Sum Insured \nunder the Policy \n5 & 7.5 Lacs \n10 Lacs \n15 Lacs \n20, 25, 50 & \n75 Lakhs \n100 & 200 \nLacs \nLimit of Cover \nRs. 1,500 \nRs. 2,000 \nRs. 4,000 \nRs. 5,000 \nRs. 8,000",
+    "category": "limit_or_sublimit",
+    "expected_value": null,
+    "conditions": [
+      "Tiered by Base Sum Insured",
+      "Individual Policy"
+    ],
+    "expected_status": "needs_review",
+    "notes": "Tiered tabular limit depending on Base Sum Insured. Flattens into multiple numbers, requiring manual review."
+  },
+  {
+    "id": "gold_10",
+    "document_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "page_number": 4,
+    "quote": "This policy is subject to Co-payment of 10% of each and every claim amount for\nfresh as well as renewal policies for Insured Persons whose age at the time of entry\nis 61 years and above.",
+    "category": "deductible_or_copay",
+    "expected_value": {
+      "type": "percentage",
+      "percentage": 10.0,
+      "scope": "copayment"
+    },
+    "conditions": [
+      "Entry age 61 years and above"
+    ],
+    "expected_status": "evidence_grounded",
+    "notes": "10% co-payment applicable to insured persons entering at age 61 or above."
+  },
+  {
+    "id": "gold_11",
+    "document_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "page_number": 12,
+    "quote": "Pre-Existing Disease Waiting Period: 36 months",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 36,
+      "unit": "months"
+    },
+    "conditions": [],
+    "expected_status": "evidence_grounded",
+    "notes": "36-month waiting period for pre-existing diseases."
+  },
+  {
+    "id": "gold_12",
+    "document_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "page_number": 12,
+    "quote": "Specified Disease/ Procedure Waiting Period: 24 months",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 24,
+      "unit": "months"
+    },
+    "conditions": [],
+    "expected_status": "evidence_grounded",
+    "notes": "24-month waiting period for specified diseases and procedures."
+  },
+  {
+    "id": "gold_13",
+    "document_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "page_number": 12,
+    "quote": "Initial Waiting Period: 30 days",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 30,
+      "unit": "days"
+    },
+    "conditions": [],
+    "expected_status": "evidence_grounded",
+    "notes": "30-day initial waiting period."
+  },
+  {
+    "id": "gold_14",
+    "document_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "page_number": 12,
+    "quote": "Upon purchase of this optional cover, the PED Waiting Period reduces from 36 months\nto 12 months.",
+    "category": "waiting_period",
+    "expected_value": {
+      "type": "duration",
+      "amount": 12,
+      "unit": "months"
+    },
+    "conditions": [
+      "Purchase of optional buy-back cover"
+    ],
+    "expected_status": "needs_review",
+    "notes": "Conditional optional buy-back rider reducing waiting period. Requires review of policy schedule."
+  },
+  {
+    "id": "gold_15",
+    "document_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "page_number": 1,
+    "quote": "Non-existent cover text on page 1 image cover",
+    "category": "other",
+    "expected_value": null,
+    "conditions": [],
+    "expected_status": "rejected",
+    "notes": "Negative test case: Page 1 is an image cover with 0 extractable text; any claim citing page 1 must be rejected."
+  }
+]

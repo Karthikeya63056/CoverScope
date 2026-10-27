@@ -27,8 +27,13 @@ decision, or a legal opinion.
   - the page number comes from trusted chunk metadata, never the model.
 - Returns a safe manual-review outcome when citations cannot be verified or a
   page is explicitly flagged as unreliable.
+- Features four integrated workspaces:
+  - **Ask My Policy**: Natural-language question answering with verified citations and structured verdicts.
+  - **Policy Explorer**: Searchable extracted policy text, page browser, and evidence-linked candidate facts.
+  - **Scenario Analyzer**: Deterministic rule-based evaluation of waiting periods, conditional exclusions, and entry-age co-payments without LLM dependencies.
+  - **Document Library**: Multi-policy registry allowing seamless switching across uploaded policies.
 
-### Verdicts
+### Q&A Verdicts
 
 | Verdict | Meaning |
 |---|---|
@@ -36,6 +41,17 @@ decision, or a legal opinion.
 | **Excluded** | The wording affirmatively excludes the benefit or says it is not payable. |
 | **Depends** | Coverage turns on a condition the evidence or question does not resolve, such as a plan, rider, or policy start date. |
 | **Not stated** | The relevant provision was not found in the retrieved evidence. This does **not** mean the benefit is excluded. |
+
+### Deterministic Scenario Verdicts
+
+| Scenario Verdict | Meaning |
+|---|---|
+| **Waiting Period Active** | Elapsed policy duration is less than the applicable contractual waiting period. |
+| **Waiting Period Satisfied** | Required waiting period duration has elapsed; treatment remains subject to general policy conditions and medical necessity. |
+| **Conditional Review** | Clause applies conditionally (e.g. bariatric surgery BMI protocols, entry-age co-payment, rider endorsement verification). |
+| **Exclusion Identified** | Clause is an established standard exclusion (e.g. alcoholism under Code-Excl12). |
+| **Insufficient Evidence** | Required policy clause or necessary user input (e.g. entry age or continuous duration) is absent. |
+| **Unsupported Scenario** | Complex multi-tier sub-limits or discretionary decisions outside deterministic evaluation rules. |
 
 A valid quotation confirms the wording, not the coverage decision. Model-reported
 confidence is shown separately from Python-side citation validity.
@@ -315,22 +331,55 @@ API key.
 ## Repository layout
 
 ```text
-backend/            extraction, retrieval, answer validation, Groq client
-frontend/           Streamlit app and UI messages
+backend/
+  domain/           canonical policy domain entities, evidence invariants, validation
+  document_processing/ PDF opening, text extraction, normalization, chunking, quality
+  llm/              Groq client, error mapping, retries
+  qa/               retrieval, structured schemas, answer verification, workflow
+  services/         headless policy intelligence service
+frontend/
+  components/       modular InsurTech UI cards, chips, uploader, composer
+  design_system/    custom healthcare-grade CSS stylesheet and tokens
+  layout/           workspace navigation, brand header, sidebar, footer
+  views/            Ask My Policy, Policy Explorer, Document Library workspaces
 scripts/            ask_policy.py, evaluate.py, inspect_pdf.py
-evaluation/         manually checked question set
-tests/              pytest suite
+evaluation/         17 manually checked benchmark questions
+tests/              comprehensive offline pytest suite (242 tests)
 pdfs/               public sample policy wordings
-sample_data/        placeholder for local-only sample files (PDFs ignored)
 ```
+
+---
+
+## Policy Domain Architecture (Phase 1.2)
+
+CoverScope separates the legal insurance contract, the source document, and verified factual propositions into canonical domain models under `backend/domain/`:
+
+### 1. Conceptual Hierarchy
+- **`PolicyIdentity`**: The logical insurance contract (insurer, product name, policy type, jurisdiction) independent of any specific document.
+- **`SourceDocument`**: A specific uploaded or supplied PDF document (content hash, page count, size, quality warnings, document type such as policy wording, CIS, or schedule).
+- **`SourcePage`**: A 1-based physical page extracted from a document with readability diagnostics.
+- **`EvidenceReference`**: An exact verbatim text excerpt anchored to a specific document, page number, and chunk.
+- **`PolicyFact`**: A structured factual proposition (e.g., waiting period duration, exclusion, monetary sublimit) backed by evidence references.
+- **`FactRelationship`**: A semantic link between facts (e.g., `QUALIFIES`, `EXCEPTION_TO`, `DEFINED_BY`, `SUPERSEDES`).
+
+### 2. Evidence Invariants & Validation Rules
+- **Document Boundary**: An evidence reference must point to an existing source document and a valid 1-based page number within that document's page count.
+- **Exact Quotation Grounding**: Quotes must match the source page text after Unicode-aware normalization.
+- **Fact Verification**: A fact cannot be marked `EVIDENCE_VERIFIED` without at least one valid supporting evidence reference.
+- **Cross-Document Mixing Prevention**: Facts cannot mix evidence references across different documents without explicit multi-document associations.
+- **Supersession Integrity**: A `SUPERSEDES` relationship cannot be verified without explicit evidence; upload order or dates alone never prove contractual supersession.
+
+### 3. Candidate Extraction vs. Verified Facts
+- **Candidate Facts**: Deterministically discovered via regex heuristics for key Indian health insurance clauses (e.g., PED waiting periods, specific exclusions, monetary caps).
+- **Evidence Verification**: Validated in Python against raw extracted page text.
+- **Interpretation Safeguard**: A validated quotation confirms the presence of the wording, not a legal guarantee of coverage. Contradictory or plan-dependent clauses retain `NEEDS_REVIEW` or `CANDIDATE` status.
 
 ---
 
 ## Status
 
-Phase 3 local MVP is complete: Streamlit upload -> processing -> question ->
-retrieved evidence -> Groq -> validated citations -> verified or manual-review
-answer.
-
-Remaining submission work: live deployment, a 3–5 minute demo recording, and the
-submission form. Deployment has not been claimed or verified yet.
+- **Phase 1.1 - 1.2: Headless Service, Workspaces & Policy Domain Foundation**: Canonical domain models, headless service, multi-policy registry, and evidence-grounded fact extraction.
+- **Phase 1.3 - 1.6: Policy Fact Quality, Semantic Validation & Scenario Analyzer**: Evaluated fact extraction with deterministic gates and interactive scenario analyzer (waiting periods, exclusions, entry-age co-payment).
+- **Phase 2.0: Evidence-Backed Policy Comparison & Protection Gaps**: Side-by-side policy comparison across canonical dimensions, highlighting evidence-grounded facts, condition-dependent terms, and protection gaps.
+- **Phase 3.0 - 3.1: Policy Schedule Ingestion & Decision Integrity**: Ingests Policy Schedules / Certificates of Insurance, performs safe association with base policy wordings, prevents cross-insurer and variant mismatches, strictly masks sensitive policy numbers, validates rider applicability, sequences voluntary deductibles and co-payments without double-counting, and provides contractual claim disclaimers.
+- **Test Suite**: 242 passing tests across 30 test files, with 100% offline benchmark evaluation across fact extraction, scenario analysis, comparison, and policy schedule ingestion.

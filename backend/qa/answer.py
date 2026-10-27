@@ -152,6 +152,11 @@ def verify_citations(
     for citation in citations:
         source = evidence_by_id.get(citation.chunk_id)
         if source is None:
+            # Check normalized chunk ID in case the model copied bracket/page headers (e.g. "P10-C2 | page 10")
+            clean_id = citation.chunk_id.split("|")[0].strip().strip("[]").strip("'\"")
+            source = evidence_by_id.get(clean_id)
+
+        if source is None:
             problems.append(
                 f"Unknown chunk ID {citation.chunk_id!r} was cited."
             )

@@ -52,6 +52,7 @@ from frontend.layout.header import (
     render_brand_header,
     render_sidebar,
 )
+from frontend.layout.navigation import render_navigation
 from frontend.layout.page import setup_page
 from frontend.messages import (
     CONFIDENCE_LABELS,
@@ -74,6 +75,11 @@ from frontend.state import (
     QUESTION_KEY,
     RESULT_KEY,
     UPLOADER_VERSION_KEY,
+    VIEW_ASK,
+    VIEW_EXPLORER,
+    VIEW_LIBRARY,
+    VIEW_SCENARIO,
+    VIEW_COMPARISON,
     clear_document,
     cooldown_remaining,
     ensure_processed,
@@ -82,15 +88,6 @@ from frontend.state import (
     run_question,
     use_suggestion,
 )
-
-# Backwards compatibility private aliases
-_run_question = run_question
-_ensure_processed = ensure_processed
-_reset_app = reset_app
-_use_suggestion = use_suggestion
-_cooldown_remaining = cooldown_remaining
-_clear_document = clear_document
-_init_state = init_state
 from frontend.utils.formatters import (
     _blockquote,
     _escape_md,
@@ -101,6 +98,20 @@ from frontend.utils.formatters import (
     verdict_label,
 )
 from frontend.utils.view_models import AnswerViewModel
+from frontend.views.ask_view import _render_answer, _render_answer_zone, render_ask_view
+from frontend.views.comparison_view import render_comparison_view
+from frontend.views.explorer_view import render_explorer_view
+from frontend.views.library_view import render_library_view
+from frontend.views.scenario_view import render_scenario_view
+
+# Backwards compatibility private aliases
+_run_question = run_question
+_ensure_processed = ensure_processed
+_reset_app = reset_app
+_use_suggestion = use_suggestion
+_cooldown_remaining = cooldown_remaining
+_clear_document = clear_document
+_init_state = init_state
 
 # Backwards compatibility aliases for existing tests
 __all__ = [
@@ -124,7 +135,6 @@ __all__ = [
     "_blockquote",
 ]
 
-
 # Component aliases
 _render_hero = render_hero
 _render_landing = render_value_props
@@ -132,50 +142,6 @@ _render_uploader = render_uploader
 _render_document_error = render_upload_error
 _render_document_summary = render_document_card
 _render_question_area = render_question_composer
-
-
-def _render_answer(result: AnswerResult, question: str | None = None) -> None:
-    vm = AnswerViewModel.from_result(result)
-
-    render_manual_review_banner(vm.manual_review_required, vm.citations_valid)
-    render_verdict_card(
-        vm.verdict,
-        manual_review_required=vm.manual_review_required,
-        citations_valid=vm.citations_valid,
-    )
-    render_answer_summary(
-        vm.answer_text,
-        question=question,
-        is_not_stated=vm.verdict.is_not_stated,
-    )
-    render_confidence_metrics(
-        vm.confidence_display,
-        citations_valid=vm.citations_valid,
-        cited_pages=vm.cited_pages_display,
-    )
-    render_evidence_section(vm.citations)
-    render_caveats_and_warnings(
-        warnings=vm.warnings,
-        caveats=vm.caveats,
-        unverified_answer=vm.unverified_answer,
-    )
-
-
-def _render_answer_zone() -> None:
-    error = st.session_state.get(ERROR_KEY)
-    result = st.session_state.get(RESULT_KEY)
-
-    if error:
-        render_provider_error(error)
-    if result:
-        if error:
-            st.markdown("#### Previous answer")
-            st.caption(
-                "This is the last verified result and may not answer your latest question."
-            )
-        _render_answer(result, st.session_state.get(LAST_Q_KEY))
-    elif not error:
-        render_empty_answer_state()
 
 
 def main() -> None:
@@ -187,34 +153,19 @@ def main() -> None:
     render_cinematic_intro(force_play=force_replay)
 
     render_brand_header()
-    policy = st.session_state.get(DOC_KEY)
-    render_hero(compact=policy is not None)
+    active_view = render_navigation()
 
-
-
-    uploaded = render_uploader()
-
-    if uploaded is None:
-        if st.session_state.get(DOC_FP_KEY):
-            clear_document()
+    # Route to selected workspace
+    if active_view == VIEW_EXPLORER:
+        render_explorer_view()
+    elif active_view == VIEW_SCENARIO:
+        render_scenario_view()
+    elif active_view == VIEW_COMPARISON:
+        render_comparison_view()
+    elif active_view == VIEW_LIBRARY:
+        render_library_view()
     else:
-        ensure_processed(uploaded)
-
-    if st.session_state.pop(JUST_PROCESSED_KEY, False):
-        st.success("Policy processed. You can ask a question now.")
-
-    policy = st.session_state.get(DOC_KEY)
-    if policy is None:
-        render_upload_error()
-        if not st.session_state.get(DOC_ERROR_KEY):
-            render_value_props()
-            render_privacy_notice(expanded=False)
-    else:
-        render_document_card(policy)
-        st.write("")
-        render_question_composer(policy)
-        st.divider()
-        _render_answer_zone()
+        render_ask_view()
 
     render_footer()
 

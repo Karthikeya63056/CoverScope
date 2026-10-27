@@ -1388,3 +1388,43 @@ div[data-testid="stExpander"] details {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   Workspace Navigation & Multi-Document Registry (Phase 1.1)
+   ========================================================================== */
+.cs-nav-active-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-pill);
+  padding: 0.45rem 0.95rem;
+  font-size: 0.82rem;
+  box-shadow: var(--cs-shadow-sm);
+  justify-content: flex-end;
+}
+
+.cs-nav-no-doc {
+  background: #f8fafc;
+  color: var(--cs-text-muted);
+  border-style: dashed;
+}
+
+.cs-nav-active-text {
+  color: var(--cs-navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-testid="stSegmentedControl"] {
+  margin-bottom: 0.75rem;
+}
+
+[data-testid="stSegmentedControl"] button {
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  border-radius: var(--cs-radius-md) !important;
+  transition: all 0.15s ease !important;
+}

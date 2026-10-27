@@ -1,0 +1,50 @@
+[
+  {
+    "fixture_id": "sch_hdfc_optima",
+    "filename": "hdfc_optima_schedule.pdf",
+    "description": "HDFC ERGO Optima Secure Schedule with 2 members and ₹10L Sum Insured",
+    "text": "HDFC ERGO General Insurance Company Limited\nPOLICY SCHEDULE - HEALTH INSURANCE\nPolicy Number: 2805/2001/8945/00/000\nPlan / Product: Optima Secure\nPeriod of Insurance: From 15/01/2024 to 14/01/2025\nSum Insured: Rs. 1,000,000\nINSURED PERSONS DETAILS:\n1. Name: Rajesh Sharma | Age: 42 | Relation: Self\n2. Name: Sunita Sharma | Age: 39 | Relation: Spouse\nNo optional riders elected.",
+    "expected_insurer": "HDFC ERGO General Insurance",
+    "expected_product": "Optima Secure",
+    "expected_masked_prefix": "28",
+    "expected_inception": "2024-01-15",
+    "expected_expiry": "2025-01-14",
+    "expected_sum_insured": 1000000.0,
+    "expected_member_count": 2,
+    "expected_rider_count": 0,
+    "target_wording_file": "pdfs/optima-secure-revision-pw.pdf",
+    "expected_association_status": "suggested_match"
+  },
+  {
+    "fixture_id": "sch_star_comprehensive",
+    "filename": "star_comprehensive_schedule.pdf",
+    "description": "Star Comprehensive Schedule with 1 senior member, ₹5L Sum Insured, and active PED Buy-back Rider",
+    "text": "Star Health and Allied Insurance Company Limited\nCERTIFICATE OF INSURANCE\nPolicy Certificate No: P/161114/01/2024/005432\nProduct: Star Comprehensive Insurance Policy\nPolicy Period: From 01-Jul-2023 to 30-Jun-2024\nSum Insured (INR): 500,000\nInsured Person Details:\nName: Ramesh Patel | Age: 64 | Relation: Self\nOPTIONAL COVERS AND ENDORSEMENTS:\n- Reduction in PED Waiting Period\n- Hospital Daily Cash",
+    "expected_insurer": "Star Health & Allied Insurance",
+    "expected_product": "Star Comprehensive Insurance Policy",
+    "expected_masked_prefix": "P/",
+    "expected_inception": "2023-07-01",
+    "expected_expiry": "2024-06-30",
+    "expected_sum_insured": 500000.0,
+    "expected_member_count": 1,
+    "expected_rider_count": 2,
+    "target_wording_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "expected_association_status": "suggested_match"
+  },
+  {
+    "fixture_id": "sch_niva_conflict",
+    "filename": "niva_bupa_mismatch_schedule.pdf",
+    "description": "Niva Bupa Schedule tested against Star Health wording to verify conflict detection",
+    "text": "Niva Bupa Health Insurance Company Limited\nPOLICY SCHEDULE\nPolicy No: NB/987654321\nPlan: Health Companion\nPeriod of Insurance: From 01/01/2024 to 31/12/2024\nSum Insured: Rs. 500,000\nName: Ankit Roy | Age: 29 | Relation: Self",
+    "expected_insurer": "Niva Bupa Health Insurance",
+    "expected_product": null,
+    "expected_masked_prefix": "NB",
+    "expected_inception": "2024-01-01",
+    "expected_expiry": "2024-12-31",
+    "expected_sum_insured": 500000.0,
+    "expected_member_count": 1,
+    "expected_rider_count": 0,
+    "target_wording_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "expected_association_status": "conflict_detected"
+  }
+]

@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+.pytest_cache
+__pycache__
+*.py[cod]
+.DS_Store
+evaluation/results.json
+sample_data/*.pdf

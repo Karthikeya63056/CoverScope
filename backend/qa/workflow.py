@@ -14,7 +14,7 @@ from backend.config import settings
 from backend.document_processing.chunker import PolicyChunk, chunk_pages
 from backend.document_processing.pdf_loader import PDFValidationError, open_pdf_bytes
 from backend.document_processing.quality_checks import QualityReport, assess_quality
-from backend.document_processing.text_extractor import extract_pages
+from backend.document_processing.text_extractor import ExtractedPage, extract_pages
 from backend.qa.answer import AnswerResult, StructuredClient, answer_question
 
 
@@ -48,6 +48,7 @@ class ProcessedPolicy:
     extracted_characters: int
     quality: QualityReport
     chunks: tuple[PolicyChunk, ...]
+    pages: tuple[ExtractedPage, ...] = ()
 
 
 def fingerprint(data: bytes, filename: str) -> str:
@@ -129,6 +130,7 @@ def prepare_policy(
         extracted_characters=report.extracted_characters,
         quality=report,
         chunks=tuple(chunks),
+        pages=tuple(pages),
     )
 
 

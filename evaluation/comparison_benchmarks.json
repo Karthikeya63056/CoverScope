@@ -1,0 +1,103 @@
+[
+  {
+    "case_id": "cmp_01_matching_ped",
+    "description": "Matching base PED waiting periods across ReAssure and Optima Secure",
+    "policy_a_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "policy_b_file": "pdfs/optima-secure-revision-pw.pdf",
+    "dimension_key": "ped_waiting_period",
+    "expected_status": "condition_dependent",
+    "expected_val_a_amount": 36.0,
+    "expected_val_b_amount": 36.0,
+    "expected_val_a_unit": "months",
+    "expected_val_b_unit": "months"
+  },
+  {
+    "case_id": "cmp_02_differing_copayment",
+    "description": "Different co-payment obligations between Star Comprehensive and ReAssure",
+    "policy_a_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "policy_b_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "dimension_key": "copayment",
+    "expected_status": "condition_dependent",
+    "expected_val_a_amount": 10.0,
+    "expected_val_b_amount": 0.0,
+    "expected_val_a_unit": "%",
+    "expected_val_b_unit": "%"
+  },
+  {
+    "case_id": "cmp_03_matching_initial_waiting_period",
+    "description": "Matching 30-day initial illness waiting period across Star and ReAssure",
+    "policy_a_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "policy_b_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "dimension_key": "initial_waiting_period",
+    "expected_status": "condition_dependent",
+    "expected_val_a_amount": 30.0,
+    "expected_val_b_amount": 30.0,
+    "expected_val_a_unit": "days",
+    "expected_val_b_unit": "days"
+  },
+  {
+    "case_id": "cmp_04_matching_specific_disease_period",
+    "description": "Matching 24-month specific disease waiting period across ReAssure and Optima",
+    "policy_a_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "policy_b_file": "pdfs/optima-secure-revision-pw.pdf",
+    "dimension_key": "specific_disease_waiting_period",
+    "expected_status": "condition_dependent",
+    "expected_val_a_amount": 24.0,
+    "expected_val_b_amount": 24.0,
+    "expected_val_a_unit": "months",
+    "expected_val_b_unit": "months"
+  },
+  {
+    "case_id": "cmp_05_one_sided_exclusion_missing_from_docs",
+    "description": "Exclusion established in ReAssure but unextracted from Optima Secure text",
+    "policy_a_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "policy_b_file": "pdfs/optima-secure-revision-pw.pdf",
+    "dimension_key": "obesity_exclusion",
+    "expected_status": "missing_from_documents",
+    "expected_val_a_available": true,
+    "expected_val_b_available": false
+  },
+  {
+    "case_id": "cmp_06_alcoholism_exclusion_missing_from_star",
+    "description": "Alcoholism exclusion in ReAssure wording but missing in Star brochure text",
+    "policy_a_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "policy_b_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "dimension_key": "alcoholism_exclusion",
+    "expected_status": "missing_from_documents",
+    "expected_val_a_available": true,
+    "expected_val_b_available": false
+  },
+  {
+    "case_id": "cmp_07_identical_policy_self_comparison",
+    "description": "Self-comparison of ReAssure against itself correctly flags identical document",
+    "policy_a_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "policy_b_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "dimension_key": "ped_waiting_period",
+    "expected_is_identical": true,
+    "expected_val_a_amount": 36.0,
+    "expected_val_b_amount": 36.0
+  },
+  {
+    "case_id": "cmp_08_protection_gap_ped_duration",
+    "description": "Active PED waiting period gap generated under 20 months continuous coverage assumption",
+    "policy_a_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "policy_b_file": "pdfs/optima-secure-revision-pw.pdf",
+    "assumptions": {
+      "elapsed_months": 20
+    },
+    "expected_gap_dimension": "ped_waiting_period",
+    "expected_gap_severity": "caution"
+  },
+  {
+    "case_id": "cmp_09_protection_gap_copayment_liability",
+    "description": "10% Co-payment gap identified for Star Comprehensive for age 65 member",
+    "policy_a_file": "pdfs/Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf",
+    "policy_b_file": "pdfs/ReAssure 2.0 - Policy Wording.pdf",
+    "assumptions": {
+      "member_entry_age": 65,
+      "claim_amount": 100000.0
+    },
+    "expected_gap_dimension": "copayment",
+    "expected_gap_severity": "caution"
+  }
+]
