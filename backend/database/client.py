@@ -101,12 +101,24 @@ def get_mongodb_client(
                 _CLIENT_URI = None
 
         try:
+            import certifi
+            ca_path = certifi.where()
+        except Exception:
+            ca_path = None
+
+        try:
+            client_kwargs: dict[str, Any] = {
+                "serverSelectionTimeoutMS": settings.mongodb_server_selection_timeout_ms,
+                "connectTimeoutMS": settings.mongodb_connect_timeout_ms,
+                "retryWrites": True,
+                "appName": "CoverScope",
+            }
+            if ca_path and os.path.exists(ca_path):
+                client_kwargs["tlsCAFile"] = ca_path
+
             client: MongoClient[dict[str, Any]] = MongoClient(
                 clean_uri,
-                serverSelectionTimeoutMS=settings.mongodb_server_selection_timeout_ms,
-                connectTimeoutMS=settings.mongodb_connect_timeout_ms,
-                retryWrites=True,
-                appName="CoverScope",
+                **client_kwargs,
             )
             _CLIENT_INSTANCE = client
             _CLIENT_URI = clean_uri

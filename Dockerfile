@@ -8,9 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install curl for health checks (lightweight, no compiler packages needed)
+# Install curl and ca-certificates for secure TLS connections to MongoDB Atlas
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install pre-built wheels from requirements.txt
