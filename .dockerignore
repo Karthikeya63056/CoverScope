@@ -7,3 +7,6 @@ __pycache__
 .DS_Store
 evaluation/results.json
 sample_data/*.pdf
+frontend/node_modules
+frontend/.vite
+tests
