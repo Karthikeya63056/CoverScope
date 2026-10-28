@@ -13,6 +13,8 @@ import type {
   DashboardSummaryResponse,
   ClaimRehearsalRequest,
   ClaimRehearsalResponse,
+  ClaimRehearsalRecord,
+  ScenarioRecord,
 } from './types';
 
 const BASE_HOST = import.meta.env.VITE_API_BASE_URL
@@ -76,6 +78,7 @@ async function request<T>(
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: options.credentials || 'include',
     });
   } catch (networkErr: any) {
     throw new ApiError(
@@ -88,7 +91,7 @@ async function request<T>(
     // If unauthorized, clear invalid session
     if (!endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
       clearAuthSession();
-      if (window.location.pathname !== '/login') {
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
         window.location.href = '/login';
       }
     }
@@ -172,6 +175,20 @@ export const api = {
     return request<PolicyDetailResponse>(`/policies/${id}`);
   },
 
+  async downloadPolicy(id: string): Promise<Blob> {
+    const token = getAuthToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE_URL}/policies/${id}/download`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      throw new ApiError('Failed to download policy PDF document.', res.status);
+    }
+    return res.blob();
+  },
+
   async uploadPolicy(file: File): Promise<PolicySummary> {
     const formData = new FormData();
     formData.append('file', file);
@@ -210,6 +227,12 @@ export const api = {
     return request<ConversationHistoryResponse>(`/qa/history/${policyId}`);
   },
 
+  async clearChatHistory(policyId: string): Promise<{ success: boolean; deleted_conversations: number }> {
+    return request<{ success: boolean; deleted_conversations: number }>(`/qa/history/${policyId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Scenarios
   async evaluateScenario(params: {
     policy_id: string;
@@ -223,6 +246,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(params),
     });
+  },
+
+  async getScenarioHistory(policyId?: string): Promise<ScenarioRecord[]> {
+    const query = policyId ? `?policy_id=${encodeURIComponent(policyId)}` : '';
+    return request<ScenarioRecord[]>(`/scenarios/history${query}`);
   },
 
   // Comparison
@@ -251,8 +279,8 @@ export const api = {
     });
   },
 
-  async getClaimRehearsalHistory(policyId?: string): Promise<any[]> {
+  async getClaimRehearsalHistory(policyId?: string): Promise<ClaimRehearsalRecord[]> {
     const query = policyId ? `?policy_id=${encodeURIComponent(policyId)}` : '';
-    return request<any[]>(`/claim-rehearsal/history${query}`);
+    return request<ClaimRehearsalRecord[]>(`/claim-rehearsal/history${query}`);
   },
 };

@@ -13,6 +13,7 @@ import {
   Layers,
   Search,
   ClipboardCheck,
+  Download,
 } from 'lucide-react';
 import { api } from '../lib/api-client';
 import type { PolicySummary } from '../lib/types';
@@ -83,6 +84,22 @@ export const DocumentLibraryPage: React.FC = () => {
       setPolicies(policies.filter((p) => (p.policy_id || p.id) !== id && p.id !== id));
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to delete policy.');
+    }
+  };
+
+  const handleDownloadPolicy = async (id: string, name: string) => {
+    try {
+      const blob = await api.downloadPolicy(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name.endsWith('.pdf') ? name : `${name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to download policy PDF.');
     }
   };
 
@@ -238,6 +255,13 @@ export const DocumentLibraryPage: React.FC = () => {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleDownloadPolicy(id, name)}
+                            title="Download original PDF document"
+                            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
+                          >
+                            <Download className="h-3.5 w-3.5 text-slate-600" />
+                          </button>
                           <Link
                             to={`/claim-rehearsal?policy=${id}`}
                             title="Rehearse a claim against this policy"

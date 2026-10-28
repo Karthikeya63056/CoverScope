@@ -94,6 +94,7 @@ def evaluate_scenario(
                 analysis_type="scenario_evaluation",
                 input_summary=req.model_dump(),
                 result_summary={
+                    "policy_name": policy.filename,
                     "verdict": result.verdict.value if hasattr(result.verdict, "value") else str(result.verdict),
                     "headline": result.headline,
                     "explanation": result.explanation,
@@ -121,3 +122,45 @@ def evaluate_scenario(
         ),
         evidentiary_support=getattr(result, "evidentiary_support", ""),
     )
+
+
+@router.get("/history")
+def get_scenario_history(
+    policy_id: str | None = None,
+    current_user: AuthUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Return past scenario evaluations performed by the authenticated user."""
+    db = get_database()
+    if policy_id and policy_id.strip():
+        clean_pid = policy_id.strip()
+        policy = get_cached_policy(clean_pid, current_user.user_id)
+        if not policy:
+            if db is not None:
+                from backend.database.repositories import PolicyRepository
+                p_repo = PolicyRepository(db)
+                if not p_repo.get_policy(current_user.user_id, clean_pid) and not p_repo.get_policy_by_hash(current_user.user_id, clean_pid):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Policy not found or access denied.",
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Policy not found or access denied.",
+                )
+
+    if db is None:
+        return []
+
+    try:
+        repo = AnalysisRepository(db)
+        records = repo.list_analyses(
+            user_id=current_user.user_id,
+            policy_id=policy_id.strip() if policy_id else None,
+            analysis_type="scenario_evaluation",
+            limit=20,
+        )
+        return records
+    except Exception as exc:
+        logger.warning("Error fetching scenario evaluation history: %s", exc)
+        return []

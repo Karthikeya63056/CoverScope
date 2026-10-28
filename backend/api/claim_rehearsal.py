@@ -55,6 +55,7 @@ def rehearse_claim(
                 input_summary=req.model_dump(),
                 result_summary={
                     "rehearsal_id": report.rehearsal_id,
+                    "policy_name": report.policy_name,
                     "readiness_status": report.readiness_status,
                     "headline": report.headline,
                     "executive_summary": report.executive_summary,
@@ -75,6 +76,24 @@ def get_rehearsal_history(
 ) -> list[dict[str, Any]]:
     """Return past claim rehearsals performed by the authenticated user."""
     db = get_database()
+    if policy_id and policy_id.strip():
+        clean_pid = policy_id.strip()
+        policy = get_cached_policy(clean_pid, current_user.user_id)
+        if not policy:
+            if db is not None:
+                from backend.database.repositories import PolicyRepository
+                p_repo = PolicyRepository(db)
+                if not p_repo.get_policy(current_user.user_id, clean_pid) and not p_repo.get_policy_by_hash(current_user.user_id, clean_pid):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Policy not found or access denied.",
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Policy not found or access denied.",
+                )
+
     if db is None:
         return []
 
@@ -82,7 +101,7 @@ def get_rehearsal_history(
         repo = AnalysisRepository(db)
         records = repo.list_analyses(
             user_id=current_user.user_id,
-            policy_id=policy_id,
+            policy_id=policy_id.strip() if policy_id else None,
             analysis_type="claim_rehearsal",
             limit=20,
         )

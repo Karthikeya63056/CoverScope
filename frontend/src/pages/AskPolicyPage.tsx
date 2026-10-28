@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { api } from '../lib/api-client';
 import type { PolicySummary, AnswerResponse } from '../lib/types';
@@ -142,6 +143,19 @@ export const AskPolicyPage: React.FC = () => {
     }
   };
 
+  const handleClearChat = async () => {
+    if (!selectedPolicyId || messages.length === 0) return;
+    if (!window.confirm('Clear conversation history for this policy?')) return;
+    setErrorMsg('');
+    try {
+      await api.clearChatHistory(selectedPolicyId);
+      setMessages([]);
+    } catch (err: any) {
+      console.error('Failed to clear remote chat history:', err);
+      setErrorMsg(err.message || 'Failed to clear conversation history. Please try again.');
+    }
+  };
+
   const renderVerdictBadge = (verdict: string) => {
     const v = verdict.toLowerCase();
     if (v === 'covered') {
@@ -215,6 +229,18 @@ export const AskPolicyPage: React.FC = () => {
             >
               Upload a policy first &rarr;
             </Link>
+          )}
+
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearChat}
+              title="Clear consultation history"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-xs"
+            >
+              <RotateCcw className="h-3 w-3 text-slate-500" />
+              <span className="hidden sm:inline">Reset</span>
+            </button>
           )}
         </div>
       </div>

@@ -18,11 +18,17 @@ import {
   Sparkles,
   RefreshCw,
   ListTodo,
+  History,
+  X,
+  Calendar,
+  AlertCircle,
+  Filter,
 } from 'lucide-react';
 import { api } from '../lib/api-client';
 import type {
   ClaimRehearsalRequest,
   ClaimRehearsalResponse,
+  ClaimRehearsalRecord,
   PolicySummary,
 } from '../lib/types';
 
@@ -48,6 +54,27 @@ export const ClaimRehearsalPage: React.FC = () => {
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({});
   const [copiedQuestionIndex, setCopiedQuestionIndex] = useState<number | null>(null);
 
+  // History State
+  const [historyRecords, setHistoryRecords] = useState<ClaimRehearsalRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<ClaimRehearsalRecord | null>(null);
+  const [historyFilterPolicyOnly, setHistoryFilterPolicyOnly] = useState(false);
+
+  const fetchHistory = async (policyIdFilter?: string) => {
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const records = await api.getClaimRehearsalHistory(policyIdFilter);
+      setHistoryRecords(records || []);
+    } catch (err: any) {
+      console.warn('Failed to load claim rehearsal history:', err);
+      setHistoryError(err?.message || 'Failed to load rehearsal history.');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   // Load policies on mount
   useEffect(() => {
     async function loadPolicies() {
@@ -64,6 +91,12 @@ export const ClaimRehearsalPage: React.FC = () => {
     }
     loadPolicies();
   }, []);
+
+  // Fetch history when filter mode or policy changes
+  useEffect(() => {
+    const filterId = historyFilterPolicyOnly ? (selectedPolicyId || undefined) : undefined;
+    fetchHistory(filterId);
+  }, [historyFilterPolicyOnly, selectedPolicyId]);
 
   const handleSuggestion = (prompt: string, defaultExpense: string) => {
     setTreatment(prompt);
@@ -106,11 +139,64 @@ export const ClaimRehearsalPage: React.FC = () => {
         initialCompleted[item.id] = false;
       });
       setCompletedChecklist(initialCompleted);
+
+      // Re-fetch history to include the new simulation
+      fetchHistory(historyFilterPolicyOnly ? selectedPolicyId : undefined);
     } catch (err: any) {
       setError(err?.message || 'Failed to complete claim rehearsal.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleLoadRecordIntoForm = (rec: ClaimRehearsalRecord) => {
+    if (rec.input_summary) {
+      if (rec.input_summary.policy_id && policies.some((p) => (p.policy_id || p.id) === rec.input_summary?.policy_id)) {
+        setSelectedPolicyId(rec.input_summary.policy_id);
+      }
+      setTreatment(rec.input_summary.treatment_description || '');
+      setExpense(rec.input_summary.estimated_expense != null ? String(rec.input_summary.estimated_expense) : '');
+      setMemberAge(rec.input_summary.member_age != null ? String(rec.input_summary.member_age) : '');
+      setDurationMonths(rec.input_summary.policy_duration_months != null ? String(rec.input_summary.policy_duration_months) : '12');
+      setRoomCategory(rec.input_summary.room_category || 'single_private');
+      setHospitalType(rec.input_summary.hospital_type || 'network_cashless');
+      setIsPreExisting(!!rec.input_summary.is_pre_existing);
+      setIsEmergency(!!rec.input_summary.is_emergency);
+    }
+    setSelectedRecord(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const getPolicyDisplayName = (policyId: string, resultPolicyName?: string) => {
+    if (resultPolicyName) return resultPolicyName;
+    const match = policies.find((p) => (p.policy_id || p.id) === policyId);
+    return match?.document_name || match?.filename || policyId || 'Policy Document';
+  };
+
+  const renderReadinessBadge = (status?: string) => {
+    const s = (status || '').toLowerCase();
+    if (s.includes('ready')) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+          Ready to Verify
+        </span>
+      );
+    }
+    if (s.includes('check') || s.includes('important')) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+          <AlertTriangle className="h-3 w-3 text-amber-600" />
+          Checks Required
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+        <Info className="h-3 w-3 text-slate-500" />
+        {status || 'Unknown'}
+      </span>
+    );
   };
 
   const toggleChecklistItem = (id: string) => {
@@ -725,6 +811,340 @@ export const ClaimRehearsalPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Rehearsal History Section */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <History className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Rehearsal History &amp; Audit Records</h2>
+              <p className="text-[11px] text-slate-500">
+                Past claim simulations and readiness assessments saved in MongoDB Atlas
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHistoryFilterPolicyOnly(!historyFilterPolicyOnly)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                historyFilterPolicyOnly
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title={historyFilterPolicyOnly ? 'Showing current policy only' : 'Showing all policies'}
+            >
+              <Filter className="h-3 w-3" />
+              <span>{historyFilterPolicyOnly ? 'Current Policy Only' : 'All Policies'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fetchHistory(historyFilterPolicyOnly ? (selectedPolicyId || undefined) : undefined)}
+              disabled={isLoadingHistory}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+              title="Refresh rehearsal history"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {isLoadingHistory && (
+          <div className="space-y-2 py-4">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-14 w-full animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        )}
+
+        {/* Error State */}
+        {!isLoadingHistory && historyError && (
+          <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span>{historyError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchHistory(historyFilterPolicyOnly ? (selectedPolicyId || undefined) : undefined)}
+              className="rounded-lg bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900 hover:bg-rose-200 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoadingHistory && !historyError && historyRecords.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-200 py-10 text-center">
+            <Clock className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+            <p className="text-xs font-semibold text-slate-700">No Rehearsal History Found</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 max-w-sm mx-auto">
+              {historyFilterPolicyOnly
+                ? 'No simulations recorded for this policy yet. Run a rehearsal above to record an audit record.'
+                : 'You have not run any claim rehearsals yet. Simulate a claim above to record your first audit.'}
+            </p>
+          </div>
+        )}
+
+        {/* History List Table */}
+        {!isLoadingHistory && !historyError && historyRecords.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                <tr>
+                  <th className="py-2.5 px-3">Date &amp; Time</th>
+                  <th className="py-2.5 px-3">Policy Document</th>
+                  <th className="py-2.5 px-3">Planned Treatment</th>
+                  <th className="py-2.5 px-3">Estimated Bill</th>
+                  <th className="py-2.5 px-3">Readiness Status</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {historyRecords.map((rec) => {
+                  const policyName = getPolicyDisplayName(rec.policy_id, rec.result_summary?.policy_name);
+                  const treatmentDesc = rec.input_summary?.treatment_description || rec.result_summary?.headline || 'Hospitalization Consultation';
+                  const exp = rec.input_summary?.estimated_expense != null
+                    ? `₹${Number(rec.input_summary.estimated_expense).toLocaleString('en-IN')}`
+                    : '—';
+                  const dateStr = rec.created_at ? new Date(rec.created_at).toLocaleString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }) : '—';
+
+                  return (
+                    <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          <span>{dateStr}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 font-medium text-slate-800 max-w-[180px] truncate" title={policyName}>
+                        {policyName}
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-900 max-w-[200px] truncate" title={treatmentDesc}>
+                        {treatmentDesc}
+                      </td>
+                      <td className="py-3 px-3 text-slate-700 whitespace-nowrap">
+                        {exp}
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        {renderReadinessBadge(rec.result_summary?.readiness_status)}
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecord(rec)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition shadow-2xs"
+                        >
+                          <span>Inspect</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Historical Record Details Modal */}
+      {selectedRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                    <History className="h-3 w-3" />
+                    Historical Audit Record
+                  </span>
+                  {renderReadinessBadge(selectedRecord.result_summary?.readiness_status)}
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {selectedRecord.result_summary?.headline || selectedRecord.input_summary?.treatment_description || 'Claim Rehearsal Audit'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Policy: <span className="font-semibold text-slate-700">{getPolicyDisplayName(selectedRecord.policy_id, selectedRecord.result_summary?.policy_name)}</span> • {selectedRecord.created_at ? new Date(selectedRecord.created_at).toLocaleString('en-IN') : 'Date unavailable'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRecord(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="mt-4 space-y-4 text-xs">
+              {/* Executive Summary */}
+              {selectedRecord.result_summary?.executive_summary && (
+                <div className="rounded-xl bg-slate-50 p-4 border border-slate-200/70">
+                  <h4 className="font-semibold text-slate-800 mb-1">Audit Assessment Summary</h4>
+                  <p className="text-slate-600 leading-relaxed">
+                    {selectedRecord.result_summary.executive_summary}
+                  </p>
+                </div>
+              )}
+
+              {/* Recorded Hospitalization Parameters */}
+              <div className="rounded-xl border border-slate-200/80 p-4">
+                <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-slate-500" />
+                  Recorded Parameters at Evaluation
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Estimated Bill</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.estimated_expense ? `₹${Number(selectedRecord.input_summary.estimated_expense).toLocaleString('en-IN')}` : 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Member Age</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.member_age ? `${selectedRecord.input_summary.member_age} yrs` : 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Policy Tenure</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.policy_duration_months ? `${selectedRecord.input_summary.policy_duration_months} mos` : 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Room Category</span>
+                    <span className="font-semibold text-slate-800 capitalize">
+                      {selectedRecord.input_summary?.room_category?.replace(/_/g, ' ') || 'Single Private'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Hospital Type</span>
+                    <span className="font-semibold text-slate-800 capitalize">
+                      {selectedRecord.input_summary?.hospital_type?.replace(/_/g, ' ') || 'Network Cashless'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Pre-Existing Condition</span>
+                    <span className={`font-semibold ${selectedRecord.input_summary?.is_pre_existing ? 'text-amber-700' : 'text-slate-800'}`}>
+                      {selectedRecord.input_summary?.is_pre_existing ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Emergency Admission</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.is_emergency ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Snapshot if available */}
+              {selectedRecord.result_summary?.financial_breakdown && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+                  <h4 className="font-semibold text-emerald-900 mb-2 flex items-center gap-1.5">
+                    <IndianRupee className="h-3.5 w-3.5 text-emerald-700" />
+                    Recorded Financial Breakdown
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {selectedRecord.result_summary.financial_breakdown.estimated_bill != null && (
+                      <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100">
+                        <span className="block text-[10px] text-slate-500">Total Billed</span>
+                        <span className="font-bold text-slate-900">₹{Number(selectedRecord.result_summary.financial_breakdown.estimated_bill).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    {selectedRecord.result_summary.financial_breakdown.deductible_or_copay_amount != null && (
+                      <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100">
+                        <span className="block text-[10px] text-slate-500">Deductible / Co-pay</span>
+                        <span className="font-bold text-rose-700">₹{Number(selectedRecord.result_summary.financial_breakdown.deductible_or_copay_amount).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    {selectedRecord.result_summary.financial_breakdown.copayment_percentage != null && (
+                      <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100">
+                        <span className="block text-[10px] text-slate-500">Co-pay %</span>
+                        <span className="font-bold text-amber-700">{selectedRecord.result_summary.financial_breakdown.copayment_percentage}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Supporting References if available */}
+              {selectedRecord.source_references && selectedRecord.source_references.length > 0 && (
+                <div className="rounded-xl border border-slate-200/80 p-4">
+                  <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Citations &amp; Supporting Policy Clauses
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedRecord.source_references.map((clause, idx) => (
+                      <div key={idx} className="rounded-lg bg-slate-50 p-2.5 border border-slate-100 text-slate-700">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-800 mb-1">
+                          <span>{clause.topic || `Clause ${clause.chunk_id || idx + 1}`}</span>
+                          {clause.page_number && (
+                            <span className="text-[10px] text-slate-500">Page {clause.page_number}</span>
+                          )}
+                        </div>
+                        {clause.quote && (
+                          <p className="text-[11px] text-slate-600 italic">
+                            &ldquo;{clause.quote}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Informational Disclaimer Banner */}
+              <div className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-[11px] text-slate-500 border border-slate-200/60">
+                <Info className="h-4 w-4 shrink-0 text-slate-400 mt-0.5" />
+                <span>
+                  This snapshot reflects the policy rules and parameters recorded at the time of evaluation.
+                  To run a fresh simulation with updated hospital quotes or policy terms, load these parameters into the form.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => handleLoadRecordIntoForm(selectedRecord)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                <span>Load Parameters into Form</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRecord(null)}
+                className="rounded-lg bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

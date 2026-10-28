@@ -100,28 +100,39 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS for local development and production frontends
-ALLOWED_ORIGINS = [
+# Configure CORS for local development and explicit production frontends
+DEFAULT_DEV_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:8501",
 ]
-env_origins = os.getenv("COVERSCOPE_ALLOWED_ORIGINS", "")
-if env_origins:
-    for origin in env_origins.split(","):
-        clean_org = origin.strip()
-        if clean_org and clean_org not in ALLOWED_ORIGINS:
-            ALLOWED_ORIGINS.append(clean_org)
+
+
+def get_allowed_origins() -> list[str]:
+    """Load allowed CORS origins from environment and defaults.
+
+    Allows specific production frontend domains without granting wildcard
+    access to arbitrary hosted subdomains.
+    """
+    origins = list(DEFAULT_DEV_ORIGINS)
+    env_origins = os.getenv("COVERSCOPE_ALLOWED_ORIGINS") or os.getenv("CORS_ORIGINS", "")
+    if env_origins:
+        for origin in env_origins.split(","):
+            clean_org = origin.strip().rstrip("/")
+            if clean_org and clean_org not in origins:
+                origins.append(clean_org)
+    return origins
+
+
+ALLOWED_ORIGINS = get_allowed_origins()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
 )
 
 app.include_router(api_router)

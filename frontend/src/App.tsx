@@ -1,8 +1,10 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppLayout } from './layouts/AppLayout';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AskPolicyPage } from './pages/AskPolicyPage';
 import { PolicyExplorerPage } from './pages/PolicyExplorerPage';
@@ -14,6 +16,7 @@ import { ClaimRehearsalPage } from './pages/ClaimRehearsalPage';
 // Route guard redirecting unauthenticated users to /login
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -27,13 +30,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
 };
 
-// Route guard redirecting authenticated users away from /login
+// Route guard redirecting authenticated users away from /login and /register
 const PublicAuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -42,7 +45,7 @@ const PublicAuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -53,6 +56,10 @@ export const App: React.FC = () => {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public Landing Page */}
+          <Route path="/" element={<LandingPage />} />
+
+          {/* Authentication Routes */}
           <Route
             path="/login"
             element={
@@ -61,7 +68,16 @@ export const App: React.FC = () => {
               </PublicAuthRoute>
             }
           />
+          <Route
+            path="/register"
+            element={
+              <PublicAuthRoute>
+                <RegisterPage />
+              </PublicAuthRoute>
+            }
+          />
 
+          {/* Authenticated Application Routes */}
           <Route
             element={
               <ProtectedRoute>
@@ -69,7 +85,7 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/ask" element={<AskPolicyPage />} />
             <Route path="/claim-rehearsal" element={<ClaimRehearsalPage />} />
             <Route path="/explorer" element={<PolicyExplorerPage />} />

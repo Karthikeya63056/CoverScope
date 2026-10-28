@@ -29,6 +29,7 @@ def register(req: RegisterRequest, response: Response, request: Request) -> Auth
         value=token,
         httponly=True,
         max_age=86400,
+        path="/",
         samesite="lax",
         secure=is_secure,
     )
@@ -62,6 +63,7 @@ def login(req: LoginRequest, response: Response, request: Request) -> AuthRespon
         value=token,
         httponly=True,
         max_age=86400,
+        path="/",
         samesite="lax",
         secure=is_secure,
     )
@@ -95,5 +97,5 @@ def get_me(current_user: AuthUser = Depends(get_current_user)) -> UserResponse:
 def logout(response: Response, request: Request) -> dict[str, str]:
     """Clear session authentication cookie."""
     is_secure = request.url.scheme == "https" or os.getenv("ENVIRONMENT") == "production"
-    response.delete_cookie(key="access_token", samesite="lax", secure=is_secure)
+    response.delete_cookie(key="access_token", path="/", samesite="lax", secure=is_secure)
     return {"message": "Logged out successfully."}

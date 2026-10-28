@@ -11,6 +11,9 @@ import {
   Layers,
   BookOpen,
   Trash2,
+  Download,
+  MessageSquare,
+  ClipboardCheck,
 } from 'lucide-react';
 import { api } from '../lib/api-client';
 import type { PolicySummary, PolicyFactItem, PolicyPageTextResponse } from '../lib/types';
@@ -119,6 +122,30 @@ export const PolicyExplorerPage: React.FC = () => {
     }
   };
 
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadCurrentPolicy = async () => {
+    if (!currentPolicy || !selectedPolicyId) return;
+    const name = currentPolicy.filename || currentPolicy.document_name || 'Policy Document';
+    try {
+      setIsDownloading(true);
+      setErrorMsg(null);
+      const blob = await api.downloadPolicy(selectedPolicyId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name.endsWith('.pdf') ? name : `${name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to download policy PDF.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const categories = Array.from(new Set(facts.map((f) => f.category)));
   const filteredFacts = facts.filter((f) => {
     const matchesCat = factCategoryFilter === 'all' || f.category === factCategoryFilter;
@@ -157,15 +184,48 @@ export const PolicyExplorerPage: React.FC = () => {
                   );
                 })}
               </select>
-              {currentPolicy && !isCurrentBundled && (
-                <button
-                  onClick={handleDeleteSelectedPolicy}
-                  title="Permanently delete this policy from database and storage"
-                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Delete</span>
-                </button>
+              {currentPolicy && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleDownloadCurrentPolicy}
+                    disabled={isDownloading}
+                    title="Download original verified PDF policy document"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs disabled:opacity-50"
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>{isDownloading ? 'Downloading...' : 'PDF'}</span>
+                  </button>
+
+                  <Link
+                    to={`/ask?policy=${encodeURIComponent(selectedPolicyId)}`}
+                    title="Ask questions against this policy"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Ask</span>
+                  </Link>
+
+                  <Link
+                    to={`/claim-rehearsal?policy=${encodeURIComponent(selectedPolicyId)}`}
+                    title="Simulate a claim against this policy"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Rehearse</span>
+                  </Link>
+
+                  {!isCurrentBundled && (
+                    <button
+                      onClick={handleDeleteSelectedPolicy}
+                      title="Permanently delete this policy from database and storage"
+                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Delete</span>
+                    </button>
+                  )}
+                </div>
               )}
             </>
           ) : (

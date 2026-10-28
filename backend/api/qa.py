@@ -128,6 +128,21 @@ def get_conversation_history(
     conv_id = ""
 
     policy = get_cached_policy(policy_id, current_user.user_id)
+    if not policy:
+        if db is not None:
+            from backend.database.repositories import PolicyRepository
+            p_repo = PolicyRepository(db)
+            if not p_repo.get_policy(current_user.user_id, policy_id) and not p_repo.get_policy_by_hash(current_user.user_id, policy_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Policy not found or access denied.",
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Policy not found or access denied.",
+            )
+
     canonical_id = getattr(policy, "fingerprint", policy_id) if policy else policy_id
 
     if db is not None:
@@ -157,3 +172,44 @@ def get_conversation_history(
         policy_id=policy_id,
         messages=messages,
     )
+
+
+@router.delete("/history/{policy_id}")
+def clear_conversation_history(
+    policy_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Delete all conversation messages for a policy owned by current_user."""
+    db = get_database()
+    policy = get_cached_policy(policy_id, current_user.user_id)
+    if not policy:
+        if db is not None:
+            from backend.database.repositories import PolicyRepository
+            p_repo = PolicyRepository(db)
+            if not p_repo.get_policy(current_user.user_id, policy_id) and not p_repo.get_policy_by_hash(current_user.user_id, policy_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Policy not found or access denied.",
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Policy not found or access denied.",
+            )
+
+    canonical_id = getattr(policy, "fingerprint", policy_id) if policy else policy_id
+    deleted_count = 0
+    if db is not None:
+        try:
+            repo = ConversationRepository(db)
+            deleted_count = repo.delete_conversations_for_policy(current_user.user_id, policy_id)
+            if deleted_count == 0 and canonical_id != policy_id:
+                deleted_count = repo.delete_conversations_for_policy(current_user.user_id, canonical_id)
+        except Exception as exc:
+            logger.warning("Error deleting conversation history: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to clear conversation history.",
+            ) from exc
+
+    return {"success": True, "deleted_conversations": deleted_count}

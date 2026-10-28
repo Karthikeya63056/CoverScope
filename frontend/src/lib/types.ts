@@ -229,3 +229,58 @@ export interface ClaimRehearsalResponse {
   created_at?: string | null;
 }
 
+export interface ClaimRehearsalRecord {
+  id: string;
+  user_id: string;
+  policy_id: string;
+  analysis_type: string;
+  input_summary?: {
+    treatment_description?: string;
+    estimated_expense?: number | null;
+    member_age?: number | null;
+    policy_duration_months?: number | null;
+    room_category?: string;
+    hospital_type?: string;
+    is_emergency?: boolean;
+    is_pre_existing?: boolean;
+    policy_id?: string;
+  };
+  result_summary?: {
+    rehearsal_id?: string;
+    policy_name?: string;
+    readiness_status?: string;
+    headline?: string;
+    executive_summary?: string;
+    financial_breakdown?: FinancialBreakdown | null;
+  };
+  source_references?: RehearsalSupportingClause[];
+  created_at?: string;
+}
+
+export interface ScenarioRecord {
+  id: string;
+  user_id: string;
+  policy_id: string;
+  analysis_type: string;
+  input_summary?: {
+    policy_id?: string;
+    ailment?: string;
+    elapsed_months?: number;
+    elapsed_days?: number;
+    member_age?: number;
+    scenario_type?: string;
+  };
+  result_summary?: {
+    policy_name?: string;
+    verdict?: string;
+    headline?: string;
+    explanation?: string;
+  };
+  source_references?: Array<{
+    chunk_id?: string;
+    page_number?: number;
+    text?: string;
+  }>;
+  created_at?: string;
+}
+

@@ -9,12 +9,18 @@ import {
   AlertTriangle,
   HelpCircle,
   AlertCircle,
+  Info,
   FileText,
   Clock,
   ArrowRight,
+  RefreshCw,
+  History,
+  Calendar,
+  Filter,
+  X,
 } from 'lucide-react';
 import { api } from '../lib/api-client';
-import type { PolicySummary, ScenarioResponse } from '../lib/types';
+import type { PolicySummary, ScenarioResponse, ScenarioRecord } from '../lib/types';
 
 export const ScenarioAnalyzerPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -32,6 +38,58 @@ export const ScenarioAnalyzerPage: React.FC = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [result, setResult] = useState<ScenarioResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // History State
+  const [historyRecords, setHistoryRecords] = useState<ScenarioRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<ScenarioRecord | null>(null);
+  const [historyFilterPolicyOnly, setHistoryFilterPolicyOnly] = useState(false);
+
+  const fetchHistory = async (policyIdFilter?: string) => {
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const records = await api.getScenarioHistory(policyIdFilter);
+      setHistoryRecords(records || []);
+    } catch (err: any) {
+      console.warn('Failed to load scenario history:', err);
+      setHistoryError(err?.message || 'Failed to load scenario evaluation history.');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleLoadRecordIntoForm = (rec: ScenarioRecord) => {
+    if (rec.input_summary) {
+      if (rec.input_summary.policy_id && policies.some((p) => (p.policy_id || p.id) === rec.input_summary?.policy_id)) {
+        setSelectedPolicyId(rec.input_summary.policy_id);
+      }
+      if (rec.input_summary.ailment) {
+        setAilment(rec.input_summary.ailment);
+      }
+      if (rec.input_summary.elapsed_months != null) {
+        setElapsedMonths(rec.input_summary.elapsed_months);
+      }
+      if (rec.input_summary.elapsed_days != null) {
+        setElapsedDays(rec.input_summary.elapsed_days);
+      }
+      if (rec.input_summary.member_age != null) {
+        setMemberAge(rec.input_summary.member_age);
+      }
+      if (rec.input_summary.scenario_type) {
+        setScenarioType(rec.input_summary.scenario_type);
+      }
+    }
+    setSelectedRecord(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const getPolicyDisplayName = (policyId: string, resultPolicyName?: string) => {
+    if (resultPolicyName) return resultPolicyName;
+    const match = policies.find((p) => (p.policy_id || p.id) === policyId);
+    return match?.document_name || match?.filename || policyId || 'Policy Document';
+  };
 
   useEffect(() => {
     async function loadPolicies() {
@@ -54,6 +112,11 @@ export const ScenarioAnalyzerPage: React.FC = () => {
     loadPolicies();
   }, [searchParams]);
 
+  useEffect(() => {
+    const filterId = historyFilterPolicyOnly ? (selectedPolicyId || undefined) : undefined;
+    fetchHistory(filterId);
+  }, [historyFilterPolicyOnly, selectedPolicyId]);
+
   const handleEvaluate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPolicyId || !ailment.trim()) {
@@ -75,6 +138,7 @@ export const ScenarioAnalyzerPage: React.FC = () => {
         scenario_type: scenarioType,
       });
       setResult(res);
+      fetchHistory(historyFilterPolicyOnly ? selectedPolicyId : undefined);
     } catch (err: any) {
       setErrorMsg(err.message || 'Scenario evaluation failed.');
     } finally {
@@ -430,6 +494,303 @@ export const ScenarioAnalyzerPage: React.FC = () => {
               </div>
             );
           })()}
+        </div>
+      )}
+      {/* Scenario Evaluation History Section */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <History className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Scenario Evaluation History</h2>
+              <p className="text-[11px] text-slate-500">
+                Past rule-based coverage simulations and waiting period audits saved in MongoDB Atlas
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHistoryFilterPolicyOnly(!historyFilterPolicyOnly)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                historyFilterPolicyOnly
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title={historyFilterPolicyOnly ? 'Showing current policy only' : 'Showing all policies'}
+            >
+              <Filter className="h-3 w-3" />
+              <span>{historyFilterPolicyOnly ? 'Current Policy Only' : 'All Policies'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fetchHistory(historyFilterPolicyOnly ? (selectedPolicyId || undefined) : undefined)}
+              disabled={isLoadingHistory}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+              title="Refresh scenario history"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {isLoadingHistory && (
+          <div className="space-y-2 py-4">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-14 w-full animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        )}
+
+        {/* Error State */}
+        {!isLoadingHistory && historyError && (
+          <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span>{historyError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchHistory(historyFilterPolicyOnly ? (selectedPolicyId || undefined) : undefined)}
+              className="rounded-lg bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900 hover:bg-rose-200 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoadingHistory && !historyError && historyRecords.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-200 py-10 text-center">
+            <Clock className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+            <p className="text-xs font-semibold text-slate-700">No Scenario History Found</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 max-w-sm mx-auto">
+              {historyFilterPolicyOnly
+                ? 'No evaluations recorded for this policy yet. Evaluate a scenario above to record an audit.'
+                : 'You have not evaluated any scenarios yet. Simulate a scenario above to record your first audit.'}
+            </p>
+          </div>
+        )}
+
+        {/* History List Table */}
+        {!isLoadingHistory && !historyError && historyRecords.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                <tr>
+                  <th className="py-2.5 px-3">Date &amp; Time</th>
+                  <th className="py-2.5 px-3">Policy Document</th>
+                  <th className="py-2.5 px-3">Scenario Type</th>
+                  <th className="py-2.5 px-3">Ailment / Condition</th>
+                  <th className="py-2.5 px-3">Verdict</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {historyRecords.map((rec) => {
+                  const policyName = getPolicyDisplayName(rec.policy_id, rec.result_summary?.policy_name);
+                  const sType = rec.input_summary?.scenario_type?.replace(/_/g, ' ') || 'pre existing condition';
+                  const ailmentName = rec.input_summary?.ailment || rec.result_summary?.headline || 'Condition Query';
+                  const verdict = rec.result_summary?.verdict || 'evaluated';
+                  const dateStr = rec.created_at ? new Date(rec.created_at).toLocaleString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }) : '—';
+
+                  const isSatisfied = verdict.includes('satisfied') || verdict.includes('covered');
+                  const isExcluded = verdict.includes('excluded') || verdict.includes('unsupported');
+
+                  return (
+                    <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          <span>{dateStr}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 font-medium text-slate-800 max-w-[180px] truncate" title={policyName}>
+                        {policyName}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 capitalize whitespace-nowrap">
+                        {sType}
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-900 max-w-[200px] truncate" title={ailmentName}>
+                        {ailmentName}
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                          isSatisfied
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : isExcluded
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {verdict.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecord(rec)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition shadow-2xs"
+                        >
+                          <span>Inspect</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Historical Record Details Modal */}
+      {selectedRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                    <History className="h-3 w-3" />
+                    Historical Scenario Audit
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
+                    {selectedRecord.result_summary?.verdict?.replace(/_/g, ' ') || 'EVALUATED'}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {selectedRecord.result_summary?.headline || selectedRecord.input_summary?.ailment || 'Scenario Assessment'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Policy: <span className="font-semibold text-slate-700">{getPolicyDisplayName(selectedRecord.policy_id, selectedRecord.result_summary?.policy_name)}</span> • {selectedRecord.created_at ? new Date(selectedRecord.created_at).toLocaleString('en-IN') : 'Date unavailable'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRecord(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="mt-4 space-y-4 text-xs">
+              {/* Explanation Summary */}
+              {selectedRecord.result_summary?.explanation && (
+                <div className="rounded-xl bg-slate-50 p-4 border border-slate-200/70">
+                  <h4 className="font-semibold text-slate-800 mb-1">Audit Evaluation Explanation</h4>
+                  <p className="text-slate-600 leading-relaxed">
+                    {selectedRecord.result_summary.explanation}
+                  </p>
+                </div>
+              )}
+
+              {/* Recorded Parameters */}
+              <div className="rounded-xl border border-slate-200/80 p-4">
+                <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-slate-500" />
+                  Recorded Parameters at Evaluation
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Ailment / Condition</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.ailment || 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Scenario Type</span>
+                    <span className="font-semibold text-slate-800 capitalize">
+                      {selectedRecord.input_summary?.scenario_type?.replace(/_/g, ' ') || 'Pre Existing'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Elapsed Tenure</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.elapsed_months != null ? `${selectedRecord.input_summary.elapsed_months} months` : 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg">
+                    <span className="block text-[10px] text-slate-400 font-medium">Member Age</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedRecord.input_summary?.member_age != null ? `${selectedRecord.input_summary.member_age} yrs` : 'Not specified'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Supporting Clauses / Citations if available */}
+              {selectedRecord.source_references && selectedRecord.source_references.length > 0 && (
+                <div className="rounded-xl border border-slate-200/80 p-4">
+                  <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Citations &amp; Supporting Policy Clauses
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedRecord.source_references.map((clause, idx) => (
+                      <div key={idx} className="rounded-lg bg-slate-50 p-2.5 border border-slate-100 text-slate-700">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-800 mb-1">
+                          <span>Reference: {clause.chunk_id || `Clause ${idx + 1}`}</span>
+                          {clause.page_number && (
+                            <span className="text-[10px] text-slate-500">Page {clause.page_number}</span>
+                          )}
+                        </div>
+                        {clause.text && (
+                          <p className="text-[11px] text-slate-600 italic">
+                            &ldquo;{clause.text}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Informational Disclaimer Banner */}
+              <div className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-[11px] text-slate-500 border border-slate-200/60">
+                <Info className="h-4 w-4 shrink-0 text-slate-400 mt-0.5" />
+                <span>
+                  This snapshot reflects the policy clauses and parameters recorded at the time of evaluation.
+                  To run a fresh simulation with modified parameters, load these inputs into the form.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => handleLoadRecordIntoForm(selectedRecord)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+              >
+                <Scale className="h-3.5 w-3.5" />
+                <span>Load Parameters into Form</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRecord(null)}
+                className="rounded-lg bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

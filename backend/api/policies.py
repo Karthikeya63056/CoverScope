@@ -1,11 +1,12 @@
 """Policy and document management API endpoints."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
 from backend.api.deps import (
     cache_processed_policy,
@@ -58,7 +59,8 @@ async def upload_policy(
         )
 
     try:
-        policy = prepare_policy(
+        policy = await asyncio.to_thread(
+            prepare_policy,
             content,
             file.filename,
             max_upload_bytes=settings.max_upload_bytes,
@@ -87,7 +89,8 @@ async def upload_policy(
         repo = PolicyRepository(db)
         try:
             if hasattr(repo, "save_policy_file"):
-                gridfs_id = repo.save_policy_file(
+                gridfs_id = await asyncio.to_thread(
+                    repo.save_policy_file,
                     user_id=current_user.user_id,
                     document_hash=policy.fingerprint,
                     filename=policy.filename,
@@ -97,7 +100,8 @@ async def upload_policy(
             logger.warning("Could not persist policy file to MongoDB GridFS: %s", exc)
 
         try:
-            db_id = repo.save_policy_metadata(
+            db_id = await asyncio.to_thread(
+                repo.save_policy_metadata,
                 user_id=current_user.user_id,
                 document_name=policy.filename,
                 document_hash=policy.fingerprint,
@@ -116,6 +120,12 @@ async def upload_policy(
             if db_id:
                 policy_id = db_id
         except Exception as exc:
+            # If metadata save fails, clean up the GridFS file to avoid orphaned chunks
+            if gridfs_id and hasattr(repo, "delete_policy_file"):
+                try:
+                    await asyncio.to_thread(repo.delete_policy_file, current_user.user_id, policy.fingerprint)
+                except Exception:
+                    pass
             logger.warning("Could not persist policy metadata to MongoDB: %s", exc)
     else:
         # Offline / test fallback in process memory (never written to local disk)
@@ -265,6 +275,62 @@ def get_policy_detail(
         char_count=char_count,
         chunk_count=chunk_count,
         created_at=created_at,
+    )
+
+
+@router.get("/{policy_id}/download")
+def download_policy(
+    policy_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+) -> Response:
+    """Download the raw PDF policy document from MongoDB GridFS strictly scoped to owner."""
+    db = get_database()
+    pdf_bytes: bytes | None = None
+    filename: str = f"{policy_id}.pdf"
+
+    if db is not None:
+        try:
+            repo = PolicyRepository(db)
+            file_res = repo.get_policy_file(current_user.user_id, policy_id)
+            if file_res is not None:
+                pdf_bytes, filename = file_res
+        except Exception as exc:
+            logger.warning("Error fetching policy file for download from GridFS: %s", exc)
+
+    if pdf_bytes is None:
+        from backend.api.deps import _OFFLINE_RAW_BYTES
+        offline_res = _OFFLINE_RAW_BYTES.get(f"{current_user.user_id}:{policy_id}")
+        if offline_res:
+            pdf_bytes, filename = offline_res
+
+    # Check baseline demo policy
+    if pdf_bytes is None:
+        from pathlib import Path
+        from backend.qa.workflow import fingerprint
+        baseline_filename = "Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf"
+        baseline_file = Path("pdfs") / baseline_filename
+        if baseline_file.exists():
+            try:
+                b = baseline_file.read_bytes()
+                fp = fingerprint(b, baseline_file.name)
+                if fp == policy_id or policy_id in (baseline_filename, "demo", "star"):
+                    pdf_bytes = b
+                    filename = baseline_file.name
+            except Exception:
+                pass
+
+    if pdf_bytes is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Policy document not found or access denied.",
+        )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
     )
 
 

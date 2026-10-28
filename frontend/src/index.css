@@ -3,9 +3,73 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-slate-50 text-slate-800 antialiased;
   }
+
+  /* Accessible High-Contrast Global Selection: Deep Emerald & Pure White */
+  ::selection {
+    background-color: #047857 !important;
+    color: #ffffff !important;
+  }
+  ::-moz-selection {
+    background-color: #047857 !important;
+    color: #ffffff !important;
+  }
+
+  /* Inputs and textareas */
+  input::selection,
+  textarea::selection {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+  }
+  input::-moz-selection,
+  textarea::-moz-selection {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+  }
+}
+
+/* Reduced motion preference override */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .hero-nav-bar,
+  .hero-eyebrow,
+  .hero-text-line,
+  .hero-subtext,
+  .hero-cta,
+  .hero-trust,
+  .hero-signature-workspace,
+  .hero-float-badge,
+  .reveal-section,
+  .stagger-card {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Prevent FOUC (Flash of Unanimated Content) on Landing Page Initial Mount */
+.hero-nav-bar,
+.hero-eyebrow,
+.hero-text-line,
+.hero-subtext,
+.hero-cta,
+.hero-trust,
+.hero-signature-workspace,
+.hero-float-badge,
+.reveal-section {
+  opacity: 0;
 }
 
 /* Custom subtle scrollbar */
@@ -22,4 +86,49 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Gentle floating animation for hero product preview */
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Ambient glow subtle pulsing */
+@keyframes pulse-ambient {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.05) translate(8px, -6px);
+  }
+}
+
+@keyframes glow-shift {
+  0%, 100% {
+    opacity: 0.2;
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: translate(-10px, 8px) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-float-gentle {
+    animation: float-gentle 6s ease-in-out infinite;
+  }
+  .animate-pulse-ambient {
+    animation: pulse-ambient 10s ease-in-out infinite;
+  }
+  .animate-glow-shift {
+    animation: glow-shift 14s ease-in-out infinite;
+  }
 }

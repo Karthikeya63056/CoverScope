@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Trash2,
   Lock,
+  Download,
 } from 'lucide-react';
 import { api } from '../lib/api-client';
 import type { DashboardSummaryResponse } from '../lib/types';
@@ -60,6 +61,27 @@ export const DashboardPage: React.FC = () => {
       }
     } catch (err: any) {
       alert(err.message || 'Failed to delete policy.');
+    }
+  };
+
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownloadPolicy = async (id: string, name: string) => {
+    try {
+      setDownloadingId(id);
+      const blob = await api.downloadPolicy(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name.endsWith('.pdf') ? name : `${name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download policy PDF.');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -414,6 +436,16 @@ export const DashboardPage: React.FC = () => {
                         >
                           Explore
                         </Link>
+                        <span className="text-slate-300">•</span>
+                        <button
+                          onClick={() => handleDownloadPolicy(id, name)}
+                          disabled={downloadingId === id}
+                          title="Download original verified PDF policy document"
+                          className="font-semibold text-slate-700 hover:text-slate-900 hover:underline inline-flex items-center gap-0.5 disabled:opacity-50"
+                        >
+                          <Download className="h-3 w-3 inline text-emerald-600" />
+                          <span>{downloadingId === id ? 'Downloading...' : 'PDF'}</span>
+                        </button>
                         {!isBundled && (
                           <>
                             <span className="text-slate-300">•</span>

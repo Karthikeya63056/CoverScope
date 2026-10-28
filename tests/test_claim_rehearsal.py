@@ -159,3 +159,26 @@ def test_claim_rehearsal_history_endpoint(auth_headers):
     resp = client.get("/api/v1/claim-rehearsal/history", headers=auth_headers)
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+def test_claim_rehearsal_history_unauthenticated_rejected():
+    resp = client.get("/api/v1/claim-rehearsal/history")
+    assert resp.status_code == 401
+
+
+def test_claim_rehearsal_history_with_valid_policy_filter(prepared_sample_policy, auth_headers):
+    resp = client.get(
+        f"/api/v1/claim-rehearsal/history?policy_id={prepared_sample_policy.fingerprint}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+def test_claim_rehearsal_history_with_nonexistent_policy_filter(auth_headers):
+    resp = client.get(
+        "/api/v1/claim-rehearsal/history?policy_id=nonexistent-policy-9999",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
+    assert "not found or access denied" in resp.json()["detail"].lower()

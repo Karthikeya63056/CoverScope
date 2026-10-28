@@ -50,7 +50,7 @@ export const Navbar: React.FC = () => {
   }, []);
 
   const navItems = [
-    { name: 'Dashboard', to: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
     { name: 'Ask Policy', to: '/ask', icon: MessageSquare },
     { name: 'Claim Rehearsal', to: '/claim-rehearsal', icon: ClipboardCheck, badge: 'New' },
     { name: 'Scenario Analyzer', to: '/scenarios', icon: Scale },
@@ -65,7 +65,7 @@ export const Navbar: React.FC = () => {
         {/* Brand / Logo */}
         <div className="flex items-center gap-6">
           <NavLink
-            to="/"
+            to="/dashboard"
             className="flex items-center gap-2.5 transition-opacity hover:opacity-90 focus:outline-hidden"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xs shadow-emerald-700/20">
@@ -90,7 +90,7 @@ export const Navbar: React.FC = () => {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.to === '/dashboard'}
                 className={({ isActive }) =>
                   `relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all ${
                     isActive
@@ -200,7 +200,7 @@ export const Navbar: React.FC = () => {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.to === '/dashboard'}
                 className={({ isActive }) =>
                   `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition ${
                     isActive

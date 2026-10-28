@@ -250,6 +250,34 @@ def test_scenario_evaluate_api(auth_headers, sample_policy):
     assert "explanation" in data
 
 
+def test_scenario_history_api(auth_headers, sample_policy):
+    # Unauthenticated rejected
+    unauth_client = TestClient(app)
+    res_unauth = unauth_client.get("/api/v1/scenarios/history")
+    assert res_unauth.status_code == 401
+
+    # Authenticated list
+    res = client.get("/api/v1/scenarios/history", headers=auth_headers)
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+
+    # Valid policy filter
+    res_filter = client.get(
+        f"/api/v1/scenarios/history?policy_id={sample_policy.fingerprint}",
+        headers=auth_headers,
+    )
+    assert res_filter.status_code == 200
+    assert isinstance(res_filter.json(), list)
+
+    # Nonexistent policy filter
+    res_404 = client.get(
+        "/api/v1/scenarios/history?policy_id=nonexistent-policy-999",
+        headers=auth_headers,
+    )
+    assert res_404.status_code == 404
+    assert "not found or access denied" in res_404.json()["detail"].lower()
+
+
 # -----------------------------------------------------------------------------
 # 6. Policy Comparison
 # -----------------------------------------------------------------------------

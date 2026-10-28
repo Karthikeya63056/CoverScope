@@ -55,17 +55,21 @@ def _resolve_cache_key(identifier: str, user_id: str | None) -> str | None:
     if not identifier:
         return None
 
-    alias_key = _POLICY_ALIASES.get(identifier)
-    if alias_key is not None:
-        return alias_key
-
     if user_id is not None:
         owner_key = _cache_key(identifier, user_id)
         if owner_key in _POLICY_MEMORY_CACHE:
             return owner_key
 
+    alias_key = _POLICY_ALIASES.get(identifier)
+    if alias_key is not None:
+        owner = _POLICY_OWNERS.get(alias_key)
+        if owner is None or (user_id is not None and owner == user_id):
+            return alias_key
+
     if identifier in _POLICY_MEMORY_CACHE:
-        return identifier
+        owner = _POLICY_OWNERS.get(identifier)
+        if owner is None or (user_id is not None and owner == user_id):
+            return identifier
     return None
 
 
@@ -113,9 +117,11 @@ def get_cached_policy(identifier: str, user_id: str | None = None) -> Any | None
 
     # 2. Check if identifier directly matches an unowned/bundled policy
     if identifier in _POLICY_MEMORY_CACHE:
-        return _POLICY_MEMORY_CACHE[identifier]
+        owner = _POLICY_OWNERS.get(identifier)
+        if owner is None or (user_id is not None and owner == user_id):
+            return _POLICY_MEMORY_CACHE[identifier]
 
-    # 3. Resolve Mongo _id or fingerprint via MongoDB Atlas
+    # 3. Resolve Mongo _id or fingerprint via MongoDB Atlas strictly scoped to user_id
     p_doc: dict[str, Any] | None = None
     doc_hash: str = identifier
     doc_name: str | None = None
@@ -125,22 +131,11 @@ def get_cached_policy(identifier: str, user_id: str | None = None) -> Any | None
         from backend.database.client import get_database
         from backend.database.repositories import PolicyRepository
         db = get_database()
-        if db is not None:
+        if db is not None and user_id:
             repo = PolicyRepository(db)
-            if user_id:
-                p_doc = repo.get_policy(user_id, identifier)
-                if not p_doc:
-                    p_doc = repo.get_policy_by_hash(user_id, identifier)
+            p_doc = repo.get_policy(user_id, identifier)
             if not p_doc:
-                # Search by ObjectId directly in case user scoping varies
-                try:
-                    from bson import ObjectId
-                    raw = db["policies"].find_one({"_id": ObjectId(identifier)})
-                    if raw:
-                        p_doc = dict(raw)
-                        p_doc["id"] = str(p_doc["_id"])
-                except Exception:
-                    pass
+                p_doc = repo.get_policy_by_hash(user_id, identifier)
 
             if p_doc:
                 doc_hash = p_doc.get("document_hash") or doc_hash
@@ -149,22 +144,17 @@ def get_cached_policy(identifier: str, user_id: str | None = None) -> Any | None
         logger.debug("Database lookup in get_cached_policy for %s: %s", identifier, exc)
 
     # 4. If resolved doc_hash is already in memory cache, link alias and return
-    if doc_hash:
-        if user_id:
-            owner_key = _cache_key(doc_hash, user_id)
-            if owner_key in _POLICY_MEMORY_CACHE:
-                _POLICY_ALIASES[identifier] = owner_key
-                return _POLICY_MEMORY_CACHE[owner_key]
+    if p_doc and doc_hash and user_id:
+        owner_key = _cache_key(doc_hash, user_id)
+        if owner_key in _POLICY_MEMORY_CACHE:
+            _POLICY_ALIASES[identifier] = owner_key
+            return _POLICY_MEMORY_CACHE[owner_key]
 
-        if doc_hash in _POLICY_MEMORY_CACHE:
-            _POLICY_ALIASES[identifier] = doc_hash
-            return _POLICY_MEMORY_CACHE[doc_hash]
-
-    # 5. Restore raw PDF bytes directly from MongoDB Atlas GridFS
+    # 5. Restore raw PDF bytes directly from MongoDB Atlas GridFS strictly for user_id
     pdf_bytes: bytes | None = None
     resolved_filename = doc_name or f"{identifier}.pdf"
 
-    if db is not None and user_id:
+    if db is not None and user_id and p_doc:
         try:
             repo = PolicyRepository(db)
             grid_res = repo.get_policy_file(user_id, identifier)
@@ -182,9 +172,9 @@ def get_cached_policy(identifier: str, user_id: str | None = None) -> Any | None
         if offline_res:
             pdf_bytes, resolved_filename = offline_res
 
-    # 5c. Check single baseline demo policy in pdfs/ repository folder
+    # 5c. Check single baseline demo policy in pdfs/ repository folder (shared/unowned only)
     baseline_filename = "Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf"
-    if pdf_bytes is None:
+    if pdf_bytes is None and not p_doc:
         from pathlib import Path
         baseline_file = Path("pdfs") / baseline_filename
         if baseline_file.exists():
@@ -192,7 +182,7 @@ def get_cached_policy(identifier: str, user_id: str | None = None) -> Any | None
                 b = baseline_file.read_bytes()
                 from backend.qa.workflow import fingerprint
                 fp = fingerprint(b, baseline_file.name)
-                if fp == doc_hash or fp == identifier or identifier in (baseline_filename, "demo", "star"):
+                if fp == identifier or identifier in (baseline_filename, "demo", "star"):
                     pdf_bytes = b
                     resolved_filename = baseline_file.name
             except Exception:
@@ -204,7 +194,8 @@ def get_cached_policy(identifier: str, user_id: str | None = None) -> Any | None
             from backend.qa.workflow import prepare_policy
             policy = prepare_policy(pdf_bytes, resolved_filename)
             cache_processed_policy(policy, user_id=user_id, alias=identifier)
-            _POLICY_ALIASES[identifier] = _cache_key(policy.fingerprint, user_id)
+            if user_id:
+                _POLICY_ALIASES[identifier] = _cache_key(policy.fingerprint, user_id)
             logger.info("Successfully reconstructed policy '%s' (%s) into memory for user %s.", policy.filename, identifier, user_id)
             return policy
         except Exception as exc:
