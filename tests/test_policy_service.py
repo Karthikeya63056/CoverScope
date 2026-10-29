@@ -81,10 +81,14 @@ def test_policy_service_repeat_questions_reuse_prepared_policy():
     policy = service.prepare_policy(make_sample_pdf(), "health_policy.pdf")
 
     chunk = policy.chunks[0]
+    quote = (
+        "Expenses related to the treatment of a pre-existing disease (PED) are excluded "
+        "until the expiry of 36 months"
+    )
     client = FakeStructuredClient({
         "verdict": "excluded",
         "answer": "PED is excluded for 36 months.",
-        "citations": [{"chunk_id": chunk.chunk_id, "quote": chunk.text[:40]}],
+        "citations": [{"chunk_id": chunk.chunk_id, "quote": quote}],
         "confidence": "high",
         "caveats": [],
     })

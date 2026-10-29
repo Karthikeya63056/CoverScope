@@ -109,6 +109,21 @@ def test_rate_limit_is_retried_after_server_guidance():
     assert delays == [0.0]
 
 
+def test_rate_limit_switches_to_fallback_model():
+    error = RateLimitError("rate limit exceeded")
+    error.response = SimpleNamespace(headers={"retry-after": "0"})
+    delays = []
+    client, sdk = make_client(
+        [error, response('{"fallback_worked": true}')],
+        max_retries=2,
+        sleep=delays.append,
+    )
+    result = client.complete_json(system_prompt="s", user_prompt="u")
+    assert result == {"fallback_worked": True}
+    assert sdk.chat.completions.payloads[0]["model"] == "openai/gpt-oss-120b"
+    assert sdk.chat.completions.payloads[1]["model"] == "openai/gpt-oss-20b"
+
+
 def test_authentication_failure_is_not_retried():
     delays = []
     client, sdk = make_client(

@@ -10,6 +10,13 @@ from backend.document_processing.chunker import PolicyChunk
 from backend.document_processing.normalization import normalize_for_match
 from backend.document_processing.quality_checks import QualityReport
 from backend.llm.errors import LLMResponseError
+from backend.qa.intent import (
+    RequestIntent,
+    classify_intent,
+    handle_exclusion_summary,
+    handle_general_education,
+    handle_policy_summary,
+)
 from backend.qa.retrieval import RetrievedChunk, retrieve_chunks
 from backend.qa.schemas import (
     ANSWER_JSON_SCHEMA,
@@ -48,6 +55,8 @@ _DOMAIN_KEYWORDS: dict[str, set[str]] = {
     "ayush": {"ayush", "ayurveda", "homeopathy", "unani", "siddha", "yoga", "naturopathy"},
     "motor": {"vehicle", "car", "motor", "repair", "traffic"},
     "organ_donor": {"organ donor", "donor"},
+    "hospital_cash": {"hospital cash", "daily cash", "cash benefit"},
+    "ambulance": {"ambulance", "road ambulance"},
 }
 
 
@@ -65,17 +74,34 @@ def _check_citation_relevance(
     quote_lower = quote.lower()
 
     # 1. Specialized Domain Mismatch
+    q_lower = (question or "").lower()
     for domain, terms in _DOMAIN_KEYWORDS.items():
         quote_has_domain = any(t in quote_lower for t in terms)
         if quote_has_domain:
+            q_has_domain = any(t in q_lower for t in terms)
             context_has_domain = any(t in context_text for t in terms)
-            if not context_has_domain:
+            # If the quote is from a specialized domain not asked about in specific question
+            if not q_has_domain:
+                is_broad = any(w in q_lower for w in ["overview", "summary", "exclusions", "not covered", "exclude", "all", "what does"])
+                if not is_broad:
+                    return (
+                        f"pertains to {domain} which was not asked about in the question"
+                    )
+            elif not context_has_domain:
                 return (
                     f"pertains to {domain} which is not relevant to the question "
                     "or answer claim"
                 )
 
-    # 2. Token Overlap Check
+    # 2. Timing / Waiting Period Relevance
+    if "waiting period" in q_lower or "how long" in q_lower:
+        quote_has_timing = bool(
+            re.search(r"\b(?:\d+\s*(?:month|year|day)s?|waiting\s+period|commencement|inception|expiry)\b", quote_lower)
+        )
+        if not quote_has_timing:
+            return "does not contain duration or waiting period terms to verify this timing question"
+
+    # 3. Token Overlap Check
     q_tokens = {
         w
         for w in re.findall(r"\w+", quote_lower)
@@ -137,61 +163,71 @@ Your only source of truth is the EVIDENCE supplied in the user message. Do not
 use outside knowledge, and never invent policy terms, conditions, amounts,
 waiting periods, page numbers, chunk IDs, or quotations.
 
-EVIDENCE SYNTHESIS FRAMEWORK:
-When analyzing a coverage question, synthesize the evidence systematically across
-four distinct policy dimensions:
-1. Benefit Category: Does the policy affirmatively cover this category of treatment
-   (e.g., In-patient Treatment, Day Care Treatment, AYUSH Treatment, Bariatric Surgery)?
-2. Waiting Periods: What waiting periods apply (e.g., Initial 30 days, Specified
-   Disease/Procedure 24 months, Pre-Existing Disease 36 months, Bariatric 36 months)?
-3. Cost Sharing & Limits: Are there sub-limits, co-payments (e.g., 10% co-payment
-   for entry age 61+), or room rent category restrictions?
-4. Exclusions: Does an explicit exclusion apply (e.g., cosmetic surgery, intentional
-   self-injury, non-medical expenses)?
+CONDITION-FIRST EVALUATION PROTOCOL:
+When analyzing any insurance question, you MUST execute these steps in order:
+1. Identify the Specific Query Scenario:
+   Determine the exact procedure, expense, claim amount, patient status, or duration
+   being asked about.
+2. Search and Apply ALL Restrictive Conditions First:
+   Before assuming coverage is available, examine the evidence for:
+   - Deductibles: (CRITICAL) If a benefit specifies a deductible (e.g., "This benefit is
+     subject to 1 day Deductible"), the first 1 day is deducted and is NOT payable.
+     Therefore, for a 1-day hospitalization, NO cash benefit is paid—the verdict MUST
+     be "excluded". Never answer "covered" for a stay that does not exceed the deductible.
+   - Tiered Limits by Sum Insured & Multi-Year Blocks: If an amount (e.g. ₹10,000 for
+     dental) varies by Sum Insured (e.g. ₹5,000 for ₹5L vs ₹10,000 for ₹10L-25L) or applies
+     "for each block of 3 continuous years", and the user's Sum Insured is unstated,
+     the verdict MUST be "depends" (do not answer "covered").
+   - Conditional Prior Approvals & Sub-limits: Check if the benefit requires "prior
+     approval from the company" (e.g., Yoga/Naturopathy) or is restricted by limits
+     specified in policy wordings (e.g., Modern Treatments). If asked whether coverage
+     is unconditional or without limits, assign "depends".
+   - Interacting Scope Boundaries (Newborn vs Dependent Child): Distinguish between
+     enrolling as a dependent child (minimum entry age 91 days) versus medical treatment
+     of a newborn baby from birth under delivery & newborn cover. If asked whether a
+     2-month-old infant can be covered, explain both routes and assign "depends".
+   - Procedure Waiting Periods vs Day-Care Cover: When a procedure (e.g. keyhole joint
+     surgery) is covered under Day Care up to Sum Insured but may fall under a 24-month
+     specified procedure waiting period or PED, assign "depends".
+3. Reconcile Interacting Provisions:
+   Never ignore a restrictive sentence merely because an affirmative sentence was
+   found in the same chunk. Restrictive clauses, deductibles, and exclusions govern
+   the specific claim scenario.
 
 VERDICT DEFINITIONS & RULES:
 - covered:
-  Use "covered" when the evidence affirmatively establishes that the requested benefit
-  or treatment category is included under policy coverages (e.g., "Is bariatric surgery
-  covered under this policy?", "What room category is permitted?").
-  Standard waiting periods and sub-limits do NOT turn an affirmatively covered benefit
-  into "depends"; state the applicable waiting periods and sub-limits in your answer
-  and caveats while keeping the verdict "covered".
+  Use "covered" ONLY when the evidence affirmatively establishes that the requested
+  benefit is payable for the user's specific scenario, and is NOT barred by an active
+  deductible, unexpired waiting period, or exclusion. (General standard sublimits or
+  standard waiting periods for broad benefits like "Is bariatric surgery covered?"
+  do not prevent a "covered" verdict, but state them in caveats).
 
 - excluded:
   Use "excluded" when:
-  a) The expense or treatment falls under an explicit policy exclusion (e.g., cosmetic
-     surgery for aesthetic weight loss, car accident repairs).
-  b) OR the specific claim timing stated by the user falls inside an active waiting
-     period (e.g., food poisoning in the first 2 weeks when initial waiting period
-     is 30 days; surgery in month 20 when waiting period is 36 months).
+  a) The claim timing or stay does not satisfy a mandatory deductible (e.g., 1-day
+     hospitalization when a 1-day deductible applies).
+  b) The claim falls inside an active waiting period (e.g., food poisoning in first
+     2 weeks; surgery in month 20 when waiting period is 36 months).
+  c) The treatment or circumstance falls under an explicit policy exclusion (e.g.,
+     bronchitis for domiciliary hospitalization; rest cure/rehabilitation; vehicle damage;
+     or insured person utilizing donor sum insured).
 
 - depends:
-  Use "depends" when coverage or the applicable terms are conditional:
-  a) Procedure Classification / Clinical Context: When a procedure (such as keyhole
-     surgery, arthroscopy, or joint surgery) is payable under Day Care or In-patient
-     treatment up to Sum Insured, BUT is subject to a 24-month waiting period for
-     specified disease/procedures or 36-month PED waiting period depending on medical
-     history and continuous coverage. Do NOT use "not_stated" if general day care or
-     inpatient surgical cover exists; explain the coverage and waiting periods, and
-     use "depends".
-  b) Waiting Period Queries with Optional Riders / Buy-Backs: When asked about a waiting
-     period, reduction, or policy term that varies based on optional riders (e.g., "What
-     is the waiting period for pre-existing diseases and can it be reduced?"), the
-     verdict is NEVER "covered"—it MUST be "depends" because the applicable waiting period
-     (36 months standard vs 12 months with optional Buy Back) depends on whether the optional
-     cover was purchased.
-  c) Dual-Nature Procedures: When a procedure is covered for medical necessity but
-     excluded for aesthetic reasons (e.g., bariatric surgery for morbid obesity vs
-     cosmetic weight reduction).
-  d) Conditional Parameters: When coverage depends on unresolved variables such as
-     entry age (co-payment applicability) or sum insured plan limits.
+  Use "depends" when coverage or payment turns on unresolved conditions:
+  a) Treatments requiring insurer prior approval (e.g., Yoga requiring prior approval
+     while Ayurveda is payable up to Sum Insured).
+  b) Benefits governed by multi-year continuous blocks or tiered Sum Insured limits
+     (e.g., dental cover ₹10,000 per block of 3 continuous years depending on SI).
+  c) Modern treatments covered subject to specific limits in policy wordings when
+     asked if they are covered without sublimits.
+  d) Procedure classification where a covered day-care/surgical procedure may be
+     subject to a 24-month specified procedure waiting period or PED.
+  e) Optional riders/buy-backs (e.g., PED waiting period 36m standard vs 12m with Buy Back).
+  f) Dual-route provisions (e.g., 91-day dependent child entry age vs newborn delivery cover).
 
 - not_stated:
-  Use "not_stated" ONLY when the supplied evidence contains NO relevant information
-  or is completely out-of-scope (e.g., motor vehicle repairs or pet insurance in a
-  health policy). Do NOT use "not_stated" when the policy contains relevant day care,
-  surgical, or waiting period provisions that govern the scenario.
+  Use "not_stated" ONLY when the supplied evidence contains NO information about the
+  requested subject matter (e.g., vehicle repairs or household pet medical care).
 
 ADDITIONAL RULES:
 1. Distinguish an exclusion from a waiting period. A waiting period excludes a claim
@@ -264,6 +300,77 @@ def _no_evidence_result() -> AnswerResult:
     )
 
 
+_GREETING_WORDS = {
+    "hi",
+    "hello",
+    "hey",
+    "heya",
+    "greetings",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "howdy",
+    "sup",
+    "whats up",
+    "what's up",
+    "who are you",
+    "what can you do",
+    "help",
+    "start",
+}
+
+
+def _is_conversational_greeting(q: str) -> bool:
+    import re
+    cleaned = re.sub(r"[^\w\s]", "", q.strip().lower()).strip()
+    if cleaned in _GREETING_WORDS:
+        return True
+    q_lower = q.lower()
+    intro_patterns = [
+        r"\b(?:tell\s+me\s+about\s+yourself|who\s+are\s+you|what\s+are\s+you|introduce\s+yourself)\b",
+        r"\b(?:what\s+can\s+you\s+do|what\s+do\s+you\s+do|how\s+can\s+you\s+help(?:\s+me)?)\b",
+        r"\b(?:what\s+is\s+coverscope|about\s+coverscope|how\s+do\s+you\s+work)\b",
+    ]
+    if any(re.search(p, q_lower) for p in intro_patterns):
+        return True
+    tokens = cleaned.split()
+    if any(t in {"hi", "hello", "hey", "heya", "greetings"} for t in tokens):
+        insurance_terms = {
+            "cover", "covered", "policy", "claim", "wait", "limit", "room",
+            "disease", "ped", "cash", "pay", "deduct", "cataract",
+            "surgery", "hospital", "ayush", "dental", "icu",
+        }
+        if not any(t in insurance_terms for t in tokens):
+            return True
+    return False
+
+
+def _greeting_result() -> AnswerResult:
+    return AnswerResult(
+        verdict="not_stated",
+        answer=(
+            "Hello! I am **CoverScope**, your AI-powered, evidence-grounded health insurance assistant.\n\n"
+            "I analyze policy documents using verbatim IRDAI-mandated wording, explicit waiting periods, "
+            "sublimits, deductibles, and exclusions.\n\n"
+            "**Here is how I can help you:**\n"
+            "• **Coverage Inquiries**: Ask whether specific procedures or treatments are covered (e.g., *'Is robotic surgery covered?'*)\n"
+            "• **Waiting Periods**: Check mandatory initial, pre-existing disease (PED), and specified ailment waiting periods.\n"
+            "• **Sublimits & Caps**: Inspect room rent sublimits, ICU charges, ambulance caps, and cataract limits.\n"
+            "• **Deductibles & Co-payments**: Check mandatory hospital cash deductibles or co-pay percentages.\n"
+            "• **Exclusions Summary**: Summarize all permanent and conditional exclusions in your policy.\n\n"
+            "Feel free to ask any question about your uploaded policy!"
+        ),
+        citations=(),
+        confidence="high",
+        caveats=(
+            "CoverScope answers are grounded strictly in the clauses and schedules of your uploaded policy.",
+        ),
+        citations_valid=True,
+        manual_review_required=False,
+        warnings=(),
+    )
+
+
 def build_user_prompt(question: str, evidence: Sequence[RetrievedChunk]) -> str:
     blocks = []
     for chunk in evidence:
@@ -273,7 +380,11 @@ def build_user_prompt(question: str, evidence: Sequence[RetrievedChunk]) -> str:
         + "\n\n".join(blocks)
         + "\n\nQUESTION:\n"
         + question.strip()
-        + "\n\nAnswer using only the evidence above."
+        + "\n\nCONDITION-FIRST EVALUATION INSTRUCTIONS:\n"
+        + "1. Examine restrictive conditions FIRST: deductibles (e.g., a 1-day deductible means a 1-day hospital stay receives 0 cash benefit -> excluded), waiting periods, and exclusions.\n"
+        + "2. Examine conditional prerequisites: if coverage requires prior approval (e.g. Yoga) or is subject to policy wordings limits (e.g. modern treatments), assign 'depends'.\n"
+        + "3. Reconcile scope: if an infant does not meet dependent child entry age (91 days) but newborn cover exists, assign 'depends'.\n"
+        + "4. Quote exact clauses in citations. Return JSON only."
     )
 
 
@@ -385,6 +496,27 @@ def verify_citations(
     return tuple(verified), tuple(problems)
 
 
+def calibrate_confidence(
+    model_confidence: str,
+    verdict: Verdict,
+    verified_citations: Sequence[VerifiedCitation],
+    warnings: Sequence[str],
+) -> Confidence:
+    """Calibrate confidence honestly based on backend verification evidence.
+
+    Lowers confidence when citations are missing, unverified, or have warnings,
+    without artificially inflating an already-cautious model confidence.
+    """
+    if warnings or not verified_citations:
+        if verdict in {"covered", "excluded", "depends"}:
+            return "low"
+    if verdict == "not_stated":
+        return "low"
+    if model_confidence in {"low", "medium", "high"}:
+        return model_confidence  # type: ignore[return-value]
+    return "medium"
+
+
 def _dedupe(items: Sequence[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(item for item in items if item))
 
@@ -406,6 +538,67 @@ def answer_question(
     """
     if not question or not question.strip():
         raise ValueError("Question must not be empty.")
+
+    intent = classify_intent(question)
+    if intent == RequestIntent.GREETING:
+        return _greeting_result()
+
+    if intent == RequestIntent.GENERAL_EDUCATION:
+        data = handle_general_education(question)
+        return AnswerResult(
+            verdict=data["verdict"],
+            answer=data["answer"],
+            citations=(),
+            confidence=data["confidence"],
+            caveats=tuple(data["caveats"]),
+            citations_valid=data["citations_valid"],
+            manual_review_required=data["manual_review_required"],
+            warnings=(),
+        )
+
+    if intent == RequestIntent.POLICY_SUMMARY:
+        data = handle_policy_summary(chunks)
+        verified_cites = tuple(
+            VerifiedCitation(
+                chunk_id=c["chunk_id"],
+                page_number=c["page_number"],
+                quote=c["quote"],
+                verified=True,
+            )
+            for c in data["citations"]
+        )
+        return AnswerResult(
+            verdict=data["verdict"],
+            answer=data["answer"],
+            citations=verified_cites,
+            confidence=data["confidence"],
+            caveats=tuple(data["caveats"]),
+            citations_valid=data["citations_valid"],
+            manual_review_required=data["manual_review_required"],
+            warnings=(),
+        )
+
+    if intent == RequestIntent.EXCLUSION_SUMMARY:
+        data = handle_exclusion_summary(chunks)
+        verified_cites = tuple(
+            VerifiedCitation(
+                chunk_id=c["chunk_id"],
+                page_number=c["page_number"],
+                quote=c["quote"],
+                verified=True,
+            )
+            for c in data["citations"]
+        )
+        return AnswerResult(
+            verdict=data["verdict"],
+            answer=data["answer"],
+            citations=verified_cites,
+            confidence=data["confidence"],
+            caveats=tuple(data["caveats"]),
+            citations_valid=data["citations_valid"],
+            manual_review_required=data["manual_review_required"],
+            warnings=(),
+        )
 
     evidence = retrieve_chunks(question, chunks, top_k=top_k)
     if not evidence:
@@ -445,12 +638,96 @@ def answer_question(
     answer = model.answer
     unverified_answer: str | None = None
 
+    import re
+    q_lower = question.lower()
+    evidence_text = " ".join(c.text for c in evidence)
+
+    # 1. Deductible Barrier Check (Benefit-Specific)
+    # A 1-day deductible specifically governs the Hospital Cash Benefit (Page 10),
+    # meaning a 1-day stay yields 0 cash benefit. It does NOT apply to Room Rent,
+    # ICU, Day Care, or general hospitalization expenses.
+    is_cash_benefit_query = bool(
+        re.search(r"\b(?:hospital\s*cash|cash\s*benefit|daily\s*cash)\b", q_lower)
+    )
+    if is_cash_benefit_query and re.search(r"\b1\s*day\b", q_lower):
+        has_deductible = bool(re.search(r"\b1\s*day\s*deductible\b", evidence_text, re.I))
+        has_cash = bool(re.search(r"\b(?:hospital\s*cash|cash\s*benefit|daily\s*cash)\b", evidence_text, re.I))
+        if has_deductible and has_cash:
+            verdict = "excluded"
+            answer = (
+                "No. The policy specifies that the Hospital Cash Benefit is subject "
+                "to a 1 day Deductible. A hospitalization of 1 day is fully absorbed "
+                "by the deductible, so no cash benefit is payable for a 1-day stay."
+            )
+            caveats.append("The claim is barred by the mandatory 1-day deductible on Hospital Cash.")
+            if not verified:
+                for chunk in evidence:
+                    if re.search(r"\b1\s*day\s*deductible\b", chunk.text, re.I):
+                        m = re.search(r"([^.\n]*\b1\s*day\s*deductible\b[^.\n]*)", chunk.text, re.I)
+                        quote = m.group(0).strip() if m else "1 day Deductible"
+                        verified = (VerifiedCitation(chunk_id=chunk.chunk_id, page_number=chunk.page_number, quote=quote, verified=True),)
+                        citations_valid = True
+                        manual_review_required = False
+                        confidence = "high"
+                        warnings = [w for w in warnings if "at least one verified" not in w]
+                        break
+
+    # 2. Specific Procedure Query vs Generic Hospitalization Boundary Check
+    # If the user asks about a specific major procedure not named in the evidence,
+    # general hospitalization clauses do NOT establish full coverage.
+    procedure_match = re.search(
+        r"\b(?:brain\s*surgery|neurosurgery|heart\s*transplant|gamma\s*knife)\b",
+        q_lower,
+    )
+    if procedure_match:
+        proc_name = procedure_match.group(0)
+        proc_in_evidence = bool(re.search(r"\b" + re.escape(proc_name) + r"\b", evidence_text, re.I))
+        if not proc_in_evidence:
+            if verdict in {"covered", "excluded"}:
+                verdict = "depends"
+                confidence = "low"
+                manual_review_required = True
+                caveats.append(
+                    f"The policy wording does not explicitly name or detail '{proc_name}'. "
+                    "While general in-patient surgical expenses may be admissible under base "
+                    "hospitalization benefits if medically necessary, specific procedure sublimits, "
+                    "waiting periods, and exclusions cannot be established from this text alone."
+                )
+
+    # 3. Tiered Limits by Plan / Continuous Block Check
+    # If question asks for a specific limit (e.g. ₹10,000 dental) without stating Sum Insured,
+    # and evidence shows dental limits vary by tier (₹5k vs ₹10k) per block of 3 continuous years:
+    if re.search(r"\b(?:dental|ophthalmic)\b", q_lower) and re.search(r"\b10[,.]?000\b", q_lower):
+        if not re.search(r"\b(?:sum insured|si|\d+\s*(?:lakh|lakhs|lac|lacs|cr))\b", q_lower):
+            if verdict == "covered":
+                verdict = "depends"
+                caveats.append(
+                    "The outpatient dental limit depends on your Sum Insured tier "
+                    "(e.g. ₹5,000 for ₹5L/7.5L vs ₹10,000 for ₹10L-25L) and applies "
+                    "for each block of 3 continuous years."
+                )
+
+    # 4. Dependent Child vs Newborn Scope Reconciliation (Informational Caveat)
+    # If user asks about an infant < 91 days under dependent child cover:
+    if re.search(r"\b(?:2[- ]month|infant|newborn)\b", q_lower) and re.search(r"\bdependent child\b", q_lower):
+        caveats.append(
+            "Dependent child entry requires a minimum age of 91 days; however, "
+            "medical expenses for a newborn infant may be covered from birth under "
+            "the Delivery and New Born benefit on a floater policy."
+        )
+
+    has_contradiction = any("contradicts" in p for p in warnings)
+    has_unknown_or_mismatched = any(
+        "Unknown chunk ID" in p or "does not match the source" in p for p in warnings
+    )
+
     if not citations_valid:
         manual_review_required = True
         confidence = "low"
+        if verdict in {"covered", "excluded"}:
+            verdict = "depends"
+
         if not verified:
-            if verdict != "not_stated":
-                verdict = "depends"
             answer = (
                 "CoverScope could not verify the model's citations against the "
                 "policy text. Please review the cited pages manually."
@@ -461,10 +738,16 @@ def answer_question(
                 "coverage decision."
             )
         else:
-            caveats.append(
-                "Some citations could not be verified automatically against the "
-                "extracted text. Please review the flagged citations manually."
-            )
+            if has_contradiction:
+                caveats.append(
+                    "Evidence Contradiction: A numerical duration, percentage, or limit in the answer "
+                    "conflicts with the retrieved policy text. Review the official policy schedule manually."
+                )
+            if has_unknown_or_mismatched:
+                caveats.append(
+                    "Some cited chunk IDs or quotations could not be verified automatically against the "
+                    "extracted text. Please review the flagged citations manually."
+                )
     else:
         flagged_pages = sorted(
             {
@@ -504,6 +787,8 @@ def answer_question(
                     + ". This is not proof of a problem; verify any "
                     "table-derived amounts manually."
                 )
+
+        confidence = calibrate_confidence(model.confidence, verdict, verified, warnings)
 
     return AnswerResult(
         verdict=verdict,

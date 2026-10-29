@@ -217,18 +217,34 @@ export const api = {
   },
 
   // Q&A
-  async askQuestion(policyId: string, question: string): Promise<AnswerResponse> {
+  async askQuestion(policyId: string, question: string, conversationId?: string): Promise<AnswerResponse> {
     return request<AnswerResponse>('/qa/ask', {
       method: 'POST',
       body: JSON.stringify({
         policy_id: policyId,
         question,
+        conversation_id: conversationId,
       }),
     });
   },
 
   async getChatHistory(policyId: string): Promise<ConversationHistoryResponse> {
     return request<ConversationHistoryResponse>(`/qa/history/${policyId}`);
+  },
+
+  async listConversations(policyId?: string): Promise<import('./types').ConversationSummaryItem[]> {
+    const query = policyId ? `?policy_id=${encodeURIComponent(policyId)}` : '';
+    return request<import('./types').ConversationSummaryItem[]>(`/qa/conversations${query}`);
+  },
+
+  async getConversationMessages(conversationId: string): Promise<ConversationHistoryResponse> {
+    return request<ConversationHistoryResponse>(`/qa/conversations/${conversationId}/messages`);
+  },
+
+  async deleteConversation(conversationId: string): Promise<{ success: boolean; conversation_id: string }> {
+    return request<{ success: boolean; conversation_id: string }>(`/qa/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
   },
 
   async clearChatHistory(policyId: string): Promise<{ success: boolean; deleted_conversations: number }> {

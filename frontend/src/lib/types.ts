@@ -148,6 +148,15 @@ export interface ConversationMessage {
   evidence_metadata?: Record<string, any>;
 }
 
+export interface ConversationSummaryItem {
+  id: string;
+  policy_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
 export interface ConversationHistoryResponse {
   conversation_id: string;
   policy_id: string;

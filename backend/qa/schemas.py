@@ -5,10 +5,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-Verdict = Literal["covered", "excluded", "depends", "not_stated"]
+Verdict = Literal["covered", "excluded", "depends", "not_stated", "summary"]
 Confidence = Literal["high", "medium", "low"]
 
-VERDICTS: tuple[Verdict, ...] = ("covered", "excluded", "depends", "not_stated")
+VERDICTS: tuple[Verdict, ...] = ("covered", "excluded", "depends", "not_stated", "summary")
 CONFIDENCES: tuple[Confidence, ...] = ("high", "medium", "low")
 
 

@@ -18,6 +18,8 @@ def chunk_pages(
     if chunk_chars <= 0:
         raise ValueError("chunk_chars must be greater than zero")
 
+    orphan_threshold = min(250, int(chunk_chars * 0.15))
+
     chunks: list[PolicyChunk] = []
     for page in pages:
         text = page.text.strip()
@@ -25,15 +27,23 @@ def chunk_pages(
             continue
 
         # No overlap: context is not duplicated. Prefer a nearby whitespace
-        # boundary to avoid splitting words, while guaranteeing forward progress.
+        # boundary to avoid splitting words, while avoiding orphan sentence fragments.
         pieces: list[str] = []
         start = 0
         while start < len(text):
+            remainder = len(text) - start
+            if pieces and remainder <= orphan_threshold:
+                pieces[-1] = pieces[-1] + " " + text[start:].strip()
+                break
+
             end = min(start + chunk_chars, len(text))
             if end < len(text):
-                boundary = text.rfind(" ", start + int(chunk_chars * 0.75), end)
-                if boundary > start:
-                    end = boundary
+                if len(text) - end <= orphan_threshold:
+                    end = len(text)
+                else:
+                    boundary = text.rfind(" ", start + int(chunk_chars * 0.75), end)
+                    if boundary > start:
+                        end = boundary
             piece = text[start:end].strip()
             if piece:
                 pieces.append(piece)

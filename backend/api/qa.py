@@ -12,10 +12,11 @@ from backend.api.schemas import (
     AskQuestionResponse,
     CitationItem,
     ConversationHistoryResponse,
+    ConversationSummaryItem,
     MessageItem,
 )
 from backend.database.client import get_database
-from backend.database.repositories import ConversationRepository
+from backend.database.repositories import COLL_MESSAGES, ConversationRepository
 from backend.llm.errors import (
     LLMAuthError,
     LLMConfigError,
@@ -102,10 +103,13 @@ def ask_question(
     if db is not None:
         try:
             repo = ConversationRepository(db)
+            is_new = not req.conversation_id
             conv_id = repo.get_or_create_conversation(
                 user_id=current_user.user_id,
                 policy_id=canonical_id,
                 title=req.question[:60],
+                conversation_id=req.conversation_id,
+                create_new=is_new,
             )
             # Record user question
             repo.append_message(
@@ -242,3 +246,124 @@ def clear_conversation_history(
             logger.warning("Error deleting conversation history from MongoDB: %s", exc)
 
     return {"success": True, "deleted_conversations": deleted_count}
+
+
+@router.get("/conversations", response_model=list[ConversationSummaryItem])
+def list_conversations(
+    policy_id: str | None = None,
+    current_user: AuthUser = Depends(get_current_user),
+) -> list[ConversationSummaryItem]:
+    """List conversation threads owned by the current user."""
+    db = get_database()
+    items: list[ConversationSummaryItem] = []
+    if db is not None:
+        try:
+            repo = ConversationRepository(db)
+            candidate_pids: list[str] | None = None
+            if policy_id and policy_id.strip():
+                candidate_pids = [policy_id.strip()]
+                cached = get_cached_policy(policy_id.strip(), current_user.user_id)
+                if cached and getattr(cached, "fingerprint", None):
+                    if cached.fingerprint not in candidate_pids:
+                        candidate_pids.append(cached.fingerprint)
+                try:
+                    from backend.database.repositories import PolicyRepository
+                    p_repo = PolicyRepository(db)
+                    doc = p_repo.get_policy(current_user.user_id, policy_id.strip()) or p_repo.get_policy_by_hash(current_user.user_id, policy_id.strip())
+                    if doc:
+                        if doc.get("document_hash") and doc["document_hash"] not in candidate_pids:
+                            candidate_pids.append(doc["document_hash"])
+                        if doc.get("id") and doc["id"] not in candidate_pids:
+                            candidate_pids.append(doc["id"])
+                except Exception:
+                    pass
+
+            raw_convs: list[dict[str, Any]] = []
+            if candidate_pids and len(candidate_pids) > 1:
+                seen_cids = set()
+                for pid in candidate_pids:
+                    for c in repo.list_user_conversations(current_user.user_id, policy_id=pid, limit=50):
+                        cid = c.get("id") or str(c.get("_id", ""))
+                        if cid and cid not in seen_cids:
+                            seen_cids.add(cid)
+                            raw_convs.append(c)
+            else:
+                raw_convs = repo.list_user_conversations(
+                    current_user.user_id,
+                    policy_id=candidate_pids[0] if candidate_pids else None,
+                    limit=50,
+                )
+
+            for c in raw_convs:
+                conv_id = c.get("id") or str(c.get("_id", ""))
+                msg_count = db[COLL_MESSAGES].count_documents({
+                    "conversation_id": conv_id,
+                    "user_id": current_user.user_id,
+                })
+                items.append(
+                    ConversationSummaryItem(
+                        id=conv_id,
+                        policy_id=c.get("policy_id", ""),
+                        title=c.get("title", "Policy Q&A Consultation"),
+                        created_at=str(c.get("created_at", "")),
+                        updated_at=str(c.get("updated_at", "")),
+                        message_count=msg_count,
+                    )
+                )
+        except Exception as exc:
+            logger.warning("Error listing conversations: %s", exc)
+    return items
+
+
+@router.get("/conversations/{conversation_id}/messages", response_model=ConversationHistoryResponse)
+def get_conversation_messages_by_id(
+    conversation_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+) -> ConversationHistoryResponse:
+    """Retrieve chronological messages for a specific conversation ID."""
+    db = get_database()
+    messages: list[MessageItem] = []
+    policy_id = ""
+
+    if db is not None:
+        try:
+            repo = ConversationRepository(db)
+            raw_msgs = repo.list_messages(current_user.user_id, conversation_id)
+            if raw_msgs:
+                policy_id = raw_msgs[0].get("policy_id", "")
+            for m in raw_msgs:
+                messages.append(
+                    MessageItem(
+                        id=m.get("id", ""),
+                        role=m.get("role", "assistant"),
+                        content=m.get("content", ""),
+                        created_at=str(m.get("created_at", "")),
+                        evidence_metadata=m.get("evidence_metadata", {}),
+                    )
+                )
+        except Exception as exc:
+            logger.warning("Error fetching messages for conversation %s: %s", conversation_id, exc)
+
+    return ConversationHistoryResponse(
+        conversation_id=conversation_id,
+        policy_id=policy_id,
+        messages=messages,
+    )
+
+
+@router.delete("/conversations/{conversation_id}")
+def delete_single_conversation(
+    conversation_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Delete a specific conversation thread and its messages."""
+    db = get_database()
+    success = False
+    if db is not None:
+        try:
+            repo = ConversationRepository(db)
+            success = repo.delete_conversation(current_user.user_id, conversation_id)
+        except Exception as exc:
+            logger.warning("Error deleting conversation %s: %s", conversation_id, exc)
+
+    return {"success": success, "conversation_id": conversation_id}

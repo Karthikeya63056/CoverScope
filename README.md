@@ -1,321 +1,424 @@
-# CoverScope
+# 🛡️ CoverScope — Health Insurance Policy Intelligence Platform
 
 <p align="center">
-  <strong>Evidence-Grounded Health Insurance Policy Intelligence & Claim Rehearsal Platform</strong>
+  <strong>Evidence-Grounded Policy Intelligence, Deterministic Rule Evaluation & Pre-Admission Claim Rehearsal</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Frontend-React%2018%20%7C%20TypeScript%20%7C%20Vite-61DAFB?logo=react&logoColor=black" alt="React 18" />
+  <img src="https://img.shields.io/badge/Frontend-React%2018%20%7C%20TypeScript%20%7C%20Vite%205-61DAFB?logo=react&logoColor=black" alt="React 18" />
   <img src="https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.11+-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/Database-MongoDB%20Atlas%20%7C%20GridFS-47A248?logo=mongodb&logoColor=white" alt="MongoDB Atlas" />
   <img src="https://img.shields.io/badge/AI%20Inference-Groq%20Cloud%20(GPT--OSS--120B)-F55036?logo=speedtest&logoColor=white" alt="Groq AI" />
-  <img src="https://img.shields.io/badge/Tests-229%20Passed%20(100%25)-brightgreen" alt="Tests" />
+  <img src="https://img.shields.io/badge/Tests-285%20Passed%20(100%25)-brightgreen" alt="Tests" />
+  <img src="https://img.shields.io/badge/Engine-Deterministic%20Zero--Trust-blueviolet" alt="Deterministic Engine" />
   <img src="https://img.shields.io/badge/License-MIT-blue" alt="License" />
 </p>
 
 ---
 
-## 1. Executive Overview
+## 📽️ Project Explanation & Video Walkthrough
 
-**CoverScope** is a full-stack, clinical-grade health insurance intelligence platform engineered to eliminate ambiguity, fine-print surprises, and claim rejections for Indian individual health insurance policies.
-
-Unlike generic chatbot wrappers that hallucinate coverage terms, CoverScope operates on a **zero-trust, evidence-grounded architecture**:
-1. **Verbatim Grounding in Python**: The LLM never decides coverage unverified. Every citation quote is mathematically matched against raw extracted PDF text using Unicode-normalized substring verification in Python before any verdict is surfaced.
-2. **Deterministic Domain Engines**: Waiting periods, conditional exclusions, room rent caps, procedure sub-limits, and entry-age co-payments are evaluated by headless deterministic rule engines with zero LLM variance.
-3. **Pre-Hospitalization Claim Rehearsal**: Simulates planned hospital admissions to forecast out-of-pocket financial exposure, mandatory checklists, and precise TPA queries before stepping into the hospital.
-4. **Cloud-Native MongoDB GridFS Storage**: User-uploaded documents are securely stored in MongoDB Atlas GridFS with strict owner-scoped isolation, cascading deletion, and zero plaintext exposure on local disk.
+> ### 🔗 **[Click Here to Watch Project Explanation & Demo on Google Drive](https://drive.google.com/drive/folders/1B_8_sample_drive_link_replace_with_yours?usp=sharing)** 
+>
+> 📌 *Replace the link above with your official Google Drive URL. This presentation covers the architectural design, zero-trust citation verifier, deterministic claim simulation, and a full live user journey from document ingestion to pre-hospitalization claim rehearsal.*
 
 ---
 
-## 2. Core Workspaces & Capabilities
+## 📑 Table of Contents
+
+- [🛡️ CoverScope — Health Insurance Policy Intelligence Platform](#️-coverscope--health-insurance-policy-intelligence-platform)
+  - [📽️ Project Explanation \& Video Walkthrough](#️-project-explanation--video-walkthrough)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [1. Executive Overview \& The Problem](#1-executive-overview--the-problem)
+    - [The Real-World Crisis:](#the-real-world-crisis)
+  - [2. The CoverScope Zero-Trust Difference](#2-the-coverscope-zero-trust-difference)
+  - [3. Workspaces \& Core Capabilities](#3-workspaces--core-capabilities)
+    - [💬 Ask My Policy (Grounded Q\&A \& Intent Router)](#-ask-my-policy-grounded-qa--intent-router)
+    - [🏥 Claim Rehearsal Simulator](#-claim-rehearsal-simulator)
+    - [⚙️ Deterministic Scenario Analyzer](#️-deterministic-scenario-analyzer)
+    - [⚖️ Cross-Policy Comparison Matrix](#️-cross-policy-comparison-matrix)
+    - [🔍 Policy Explorer \& Fact Grounding](#-policy-explorer--fact-grounding)
+    - [📁 Document Library \& GridFS Cloud Store](#-document-library--gridfs-cloud-store)
+  - [4. System Architecture \& Data Flow](#4-system-architecture--data-flow)
+  - [5. Technology Stack](#5-technology-stack)
+    - [Frontend Architecture](#frontend-architecture)
+    - [Backend \& AI Engines](#backend--ai-engines)
+    - [Database \& Storage](#database--storage)
+  - [6. API Endpoints Reference](#6-api-endpoints-reference)
+  - [7. Local Setup \& Quick Start](#7-local-setup--quick-start)
+    - [Prerequisites](#prerequisites)
+    - [Step 1: Clone Repository \& Setup Backend](#step-1-clone-repository--setup-backend)
+    - [Step 2: Configure Environment Variables](#step-2-configure-environment-variables)
+    - [Step 3: Install Frontend Dependencies](#step-3-install-frontend-dependencies)
+    - [Step 4: Run the Application](#step-4-run-the-application)
+      - [Option A: Full-Stack Development Mode (Dual Process)](#option-a-full-stack-development-mode-dual-process)
+      - [Option B: Standalone Unified Production Server](#option-b-standalone-unified-production-server)
+  - [8. Production Cloud Deployment](#8-production-cloud-deployment)
+    - [Backend Deployment (Render / Railway / AWS ECS)](#backend-deployment-render--railway--aws-ecs)
+    - [Frontend Deployment (Vercel / Netlify)](#frontend-deployment-vercel--netlify)
+  - [9. Testing, Benchmark \& Quality Verification](#9-testing-benchmark--quality-verification)
+    - [What the Test Suite Verifies:](#what-the-test-suite-verifies)
+  - [10. Project Directory Layout](#10-project-directory-layout)
+  - [11. Legal Disclaimer](#11-legal-disclaimer)
+
+---
+
+## 1. Executive Overview & The Problem
+
+Indian health insurance policies are notoriously dense legal instruments—often **30 to 60 pages** of fine print filled with complex room-rent proportionate deductions, pre-existing disease (PED) waiting periods, procedural sublimits, and mandatory co-payments.
+
+### The Real-World Crisis:
+- **70% of Claim Reductions** occur due to non-medical consumables, unverified room-category upgrades, or premature claims made during waiting periods.
+- **Generic LLM Chatbots Fail**: Standard generative models hallucinate coverage approvals, fabricate policy clauses, or confuse general health tips with active contractual covenants.
+- **The Financial Shock**: Policyholders only discover exclusions at the hospital billing desk when faced with unexpected **₹50,000 – ₹2,50,000** out-of-pocket bills.
+
+**CoverScope** solves this by bridging the gap between natural language policy inquiries and contractual certainty. It combines high-speed Groq AI inference (`openai/gpt-oss-120b`) with a **deterministic Python verification kernel** that guarantees every single claim and verdict is backed by verbatim, mathematically verified policy text.
+
+---
+
+## 2. The CoverScope Zero-Trust Difference
+
+| Feature | Generic AI Wrapper / Chatbot | 🛡️ CoverScope Platform |
+| :--- | :--- | :--- |
+| **Citation Integrity** | Hallucinates quotes or paraphrases clauses | **Verbatim Unicode substring matching** in Python; rejects ungrounded quotes |
+| **Coverage Verdicts** | Confidently answers "Yes, covered!" | Strict categorical taxonomy (`Covered`, `Excluded`, `Depends`, `Not Stated`) |
+| **Waiting Periods & Co-pays** | LLM guesses arithmetic and timeframes | **Headless deterministic rule engine** (zero LLM variance) |
+| **Room Rent Penalties** | Often ignores proportionate deductions | Automatically calculates tariff penalties if room category exceeds policy cap |
+| **Intent Handling** | Blurs specific claims with general advice | **5-Tier Intent Classifier** separating policy questions from general health guidance |
+| **Data Privacy** | Stores raw files insecurely or in public buckets | **Owner-scoped MongoDB GridFS** with cascading erasure and zero plaintext disk exposure |
+
+---
+
+## 3. Workspaces & Core Capabilities
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            COVERSCOPE WORKSPACES                            │
-├─────────────────────┬──────────────────────┬────────────────────────────────┤
-│   Ask My Policy     │   Claim Rehearsal    │      Scenario Analyzer         │
-│ Evidence-backed Q&A │ Financial exposure   │ Deterministic waiting periods  │
-│ with Python quotes  │ & TPA checklist      │ & co-payment evaluation        │
-├─────────────────────┼──────────────────────┼────────────────────────────────┤
-│  Policy Comparison  │   Policy Explorer    │      Document Library          │
-│ Side-by-side matrix │ Verbatim text viewer │ GridFS multi-policy store with │
-│  & protection gaps  │ & extracted facts    │ cascading database erasure     │
-└─────────────────────┴──────────────────────┴────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              COVERSCOPE WORKSPACE SUITE                                │
+├──────────────────────────┬─────────────────────────────┬───────────────────────────────┤
+│    💬 Ask My Policy      │     🏥 Claim Rehearsal      │     ⚙️ Scenario Analyzer      │
+│  Evidence-grounded Q&A   │  Pre-admission simulations, │  Deterministic PED durations, │
+│  with verbatim citations │  deductions & TPA queries   │  injury waivers & co-payments │
+├──────────────────────────┼─────────────────────────────┼───────────────────────────────┤
+│   ⚖️ Policy Comparison   │     🔍 Policy Explorer      │     📁 Document Library       │
+│  Side-by-side dimensions │  Verbatim text viewer and   │  Secure GridFS store with     │
+│  & protection gap alerts │  structured candidate facts │  owner-scoped data isolation  │
+└──────────────────────────┴─────────────────────────────┴───────────────────────────────┘
 ```
 
-### 1. Ask My Policy (Evidence-Grounded Q&A)
-- Natural language coverage inquiries answered strictly from retrieved policy evidence.
-- **Categorical Verdicts**: `Covered`, `Excluded`, `Depends`, or `Not Stated`.
-- **Python-Side Citation Verifier**: Enforces chunk verification, minimum substantive character lengths, ellipsis boundary checks, and multi-column token tolerances.
-- **Safe Fallback**: If a quotation does not match source text, the UI automatically downgrades the answer to `Depends` with a prominent **Manual Review Required** badge and displays the unverified text in a safety quarantine.
-- **Persistent Chat History**: Rehydrates previous policy dialogues directly from MongoDB Atlas across browser refreshes and login sessions.
+### 💬 Ask My Policy (Grounded Q&A & Intent Router)
+- **Natural Language Inquiry**: Answers complex questions regarding surgical coverage, day-care treatments, AYUSH benefits, and organ donor expenses.
+- **5-Way Query Intent Classification**:
+  1. *Specific Coverage Question* ("Is my knee surgery covered?")
+  2. *General Policy Overview* ("What does my policy cover?")
+  3. *Exclusion Summary* ("What are the permanent exclusions?")
+  4. *Focused Clause Explanation* ("Explain the pre-existing disease waiting period")
+  5. *General Insurance Education* ("How does health insurance portability work?")
+- **Evidence Integrity & Verification Badge**: The "CoverScope Verified" badge is displayed **only** when all retrieved citations pass rigorous Unicode NFKC substring verification against the original document chunks.
+- **ChatGPT / Gemini UX**: Complete with an obsidian fixed sidebar, session history persistence, collapsible past dialogues, and a floating dock input bar.
 
-### 2. Claim Rehearsal Simulator
-- Pre-admission hospitalization simulator tailored for the Indian healthcare and TPA landscape.
-- **Financial Exposure Calculator**: Computes estimated out-of-pocket liabilities, age-based co-payments, procedure-specific sublimits (e.g. Cataract ₹40,000 sub-limit), room category proportionate deduction penalties, and non-medical consumables.
-- **TPA Pre-Admission Checklist**: Actionable steps categorized into Pre-Admission, Documentation, Financial, and TPA Coordination.
-- **Targeted Questions for Insurer / TPA**: Exact contractual questions to clarify cashless approvals prior to admission.
+### 🏥 Claim Rehearsal Simulator
+- **Pre-Hospitalization Stress Test**: Simulates planned hospital stays before pre-authorization submission.
+- **Financial Liability Calculator**:
+  - Predicts estimated bill vs. insurer liability vs. policyholder out-of-pocket expense.
+  - Accounts for entry-age co-pays, sublimits (e.g. Cataract ₹40k cap), and proportionate room-rent deductions.
+- **Interactive Action Checklist**: Grouped into *Pre-Admission*, *Medical Records*, *Financial Clearances*, and *TPA Coordination*.
+- **Targeted TPA / Insurer Scripts**: Generates ready-to-copy contractual questions to ask hospital TPAs to prevent claim settlement disputes.
 
-### 3. Scenario Analyzer (Deterministic Rule Engine)
-- Headless, rule-based scenario evaluation with **zero LLM dependencies**:
-  - **Pre-Existing Disease (PED)**: Calculates elapsed duration against 12, 24, 36, or 48-month waiting periods (properly converting years to months).
-  - **Initial 30-Day Illness Waiting Period**: Validates elapsed policy days and respects accidental injury waivers.
+### ⚙️ Deterministic Scenario Analyzer
+- **Zero-LLM Rule Engine**: 100% deterministic evaluation of waiting periods and policy clauses:
+  - **Pre-Existing Disease (PED)**: Accurately checks elapsed policy tenure against 12, 24, 36, or 48-month waiting periods.
+  - **Initial 30-Day Illness Waiting Period**: Validates elapsed policy days and respects statutory accidental injury waivers.
   - **Specific Ailment Waiting Periods**: Resolves 24-month waiting periods for cataracts, joint replacements, hernias, and kidney stones.
-  - **Entry-Age Co-Payments**: Dynamically extracts policy age thresholds (e.g. 61+ years) and accurately differentiates 0% base policies from age-exempt policies.
+  - **Entry-Age Co-Payments**: Evaluates senior citizen co-payment thresholds (e.g., 61+ years) and correctly differentiates 0% base plans.
 
-### 4. Cross-Policy Comparison Engine
-- Compares two insurance policies across 7 standardized dimensions: Sum Insured, PED Waiting Period, Initial Waiting Period, Specific Disease Waiting Period, Co-payment, Obesity Exclusion, and Alcoholism/Substance Abuse Exclusion.
-- **Protection Gap Analysis**: Identifies restrictive terms, longer waiting periods, or missing covers with actionable severity indicators (`Caution`, `Conditional Gap`).
-- Direct verbatim evidence links for both compared policies.
+### ⚖️ Cross-Policy Comparison Matrix
+- **7-Dimension Side-by-Side Analysis**: Evaluates Sum Insured, PED Waiting Periods, Initial Waiting Period, Specific Disease Waiting Periods, Co-payments, Bariatric/Obesity Surgery limits, and Modern Treatment allowances.
+- **Protection Gap Indicator**: Flags disadvantageous clauses, restrictive room-rent limits, or extended waiting periods with severity alerts (`Caution`, `Conditional Gap`).
 
-### 5. Policy Explorer & Fact Grounding
-- Page-by-page reader showing verbatim extracted policy text and page character statistics.
-- **Extracted Policy Facts**: Discovers candidate facts (waiting periods, exclusions, limits, co-payments) with page citations, extraction confidence, and conditionality triggers.
+### 🔍 Policy Explorer & Fact Grounding
+- **Page-by-Page Viewer**: Inspect extracted text chunks alongside character counts and page indices.
+- **Candidate Fact Discovery**: Automatically extracts structured facts (waiting periods, exclusions, limits, co-payments) with extraction confidence and conditionality flags.
 
-### 6. Document Library & Cloud Storage
-- Drag-and-drop ingestion of official policy wordings (PDF, max 20MB).
-- Multi-policy registry backed by MongoDB Atlas GridFS.
-- **1 Baseline Demonstration Policy**: Ships with 1 official pre-cached demo policy (*Star Comprehensive Insurance Policy*) while allowing unlimited user uploads.
-- **Cascading Database Erasure**: Deleting a policy purges GridFS binary chunks, metadata, linked Q&A conversations, messages, and analysis records across both MongoDB `_id` and SHA-256 fingerprint references.
+### 📁 Document Library & GridFS Cloud Store
+- **Drag-and-Drop Ingestion**: Upload official policy wordings in PDF format (up to 20MB).
+- **Owner-Scoped Tenant Isolation**: Every document, Q&A session, and simulation is strictly bound to the authenticated user ID.
+- **Cascading Database Erasure**: Deleting a policy cleans up GridFS binary chunks, metadata, conversation threads, and rehearsal records.
 
 ---
 
-## 3. System Architecture
+## 4. System Architecture & Data Flow
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          REACT 18 SINGLE PAGE APP                           │
-│                   Vite • TypeScript • Tailwind CSS • Lucide                 │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │ REST API (Bearer JWT / JSON)
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         FASTAPI REST API GATEWAY                            │
-│                 Uvicorn • Pydantic v2 • Starlette Middleware                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  /api/v1/auth        - User registration, login (PBKDF2), profile, JWT      │
-│  /api/v1/policies    - Upload (GridFS), detail, pages, facts, delete        │
-│  /api/v1/qa          - Grounded Q&A, Python citation audit, chat history    │
-│  /api/v1/scenarios   - Deterministic waiting period & copay evaluation      │
-│  /api/v1/rehearsal   - Claim rehearsal simulation & out-of-pocket breakdown │
-│  /api/v1/comparison  - Side-by-side dimension matrix & protection gaps      │
-│  /api/v1/dashboard   - Aggregated metrics & active document inventory       │
-└──────────────┬───────────────────────┬───────────────────────────────┬──────┘
-               │                       │                               │
-               ▼                       ▼                               ▼
-    ┌──────────────────────┐ ┌──────────────────┐  ┌────────────────────────┐
-    │   DOCUMENT PIPELINE  │ │  INFERENCE & QA  │  │   PERSISTENCE LAYER    │
-    │  PyMuPDF (fitz)      │ │  Deterministic   │  │   MongoDB Atlas Cloud  │
-    │  Unicode Normalizer  │ │   Lexical Search │  │  • GridFS (Raw PDFs)   │
-    │  Quality Guards      │ │  Groq LLM Client │  │  • Users (Salted Hash) │
-    │  Page Chunker        │ │   (GPT-OSS-120B) │  │  • Policies & Metadata │
-    │  Adapter Heuristics  │ │  Python Citation │  │  • Dialogue History    │
-    │                      │ │   Verifier       │  │  • Analysis Audits     │
-    └──────────────────────┘ └──────────────────┘  └────────────────────────┘
+                                  ┌───────────────────────────────┐
+                                  │      React 18 + Vite SPA      │
+                                  │  Tailwind CSS • Lucide Icons  │
+                                  └───────────────┬───────────────┘
+                                                  │ HTTPS / REST (JWT Bearer)
+                                                  ▼
+                                  ┌───────────────────────────────┐
+                                  │      FastAPI REST Gateway     │
+                                  │   Pydantic v2 • CORS Guard    │
+                                  └───────┬───────────────┬───────┘
+                                          │               │
+                     ┌────────────────────┘               └────────────────────┐
+                     ▼                                                         ▼
+       ┌───────────────────────────┐                             ┌───────────────────────────┐
+       │   Ingestion & Retrieval   │                             │   Deterministic Engines   │
+       │  • PyMuPDF Text Extractor │                             │  • Waiting Period Engine  │
+       │  • Unicode NFKC Matcher   │                             │  • Room Rent Calculator   │
+       │  • Smart Intent Router    │                             │  • Co-Pay Tariff Engine   │
+       │  • Lexical BM25 Ranker    │                             │  • Claim Rehearsal Core   │
+       └─────────────┬─────────────┘                             └─────────────┬─────────────┘
+                     │ Retrieved Chunks                                        │
+                     ▼                                                         │
+       ┌───────────────────────────┐                                           │
+       │     Groq Cloud LLM        │                                           │
+       │   openai/gpt-oss-120b     │                                           │
+       │   Structured JSON Schema  │                                           │
+       └─────────────┬─────────────┘                                           │
+                     │ Draft Response & Citations                              │
+                     ▼                                                         │
+       ┌───────────────────────────┐                                           │
+       │  Python Citation Verifier │                                           │
+       │  Verbatim Quote Match?    │                                           │
+       │  Chunk & Page Grounded?   │                                           │
+       └─────────────┬─────────────┘                                           │
+                     │ Verified Payload                                        │
+                     └────────────────────┬────────────────────────────────────┘
+                                          ▼
+                               ┌───────────────────────────┐
+                               │    Persistence Layer      │
+                               │   MongoDB Atlas / GridFS  │
+                               │  • User Profiles (PBKDF2) │
+                               │  • GridFS PDF Documents   │
+                               │  • Dialogue History Store │
+                               │  • Simulation Audits      │
+                               └───────────────────────────┘
 ```
 
 ---
 
-## 4. Technology Stack
+## 5. Technology Stack
 
-### Frontend
-- **Framework**: React 18 with TypeScript
-- **Bundler & Dev Server**: Vite 5
-- **Styling**: Tailwind CSS with custom healthcare InsurTech design tokens
+### Frontend Architecture
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite 5 (Fast HMR, optimized production chunks)
+- **Styling**: Tailwind CSS with custom medical InsurTech palette (`emerald`, `slate`, `amber`, `rose`)
 - **Routing**: React Router DOM v6
-- **Icons**: Lucide React
-- **State & Networking**: Native Context API (`AuthContext`) + typed Fetch Client
+- **Animations & Icons**: Lucide React + GSAP
+- **State Management**: Native React Context (`AuthContext`) + type-safe REST client
 
-### Backend & Core Engines
+### Backend & AI Engines
 - **API Framework**: FastAPI 0.115+ (Python 3.11+)
-- **ASGI Web Server**: Uvicorn
-- **PDF Processing**: PyMuPDF (`fitz` / `pymupdf`)
+- **ASGI Server**: Uvicorn
+- **PDF Engine**: PyMuPDF (`fitz` / `pymupdf < 2.0`)
 - **Data Validation**: Pydantic v2
-- **Lexical Retrieval**: Custom token-frequency & phrase-cooccurrence ranking (no vector DB required)
-- **AI Inference**: Groq Cloud SDK (`openai/gpt-oss-120b`) with strict JSON schema enforcement
+- **AI Model**: `openai/gpt-oss-120b` via Groq Cloud High-Speed Inference
+- **Deterministic Evaluation**: Pure Python rule engines for claims, waiting periods, and tariffs
 
-### Database & Security
-- **Cloud Database**: MongoDB Atlas (compatible with M0 Free Tier through dedicated clusters)
-- **Document Store**: MongoDB GridFS for raw PDF chunks with zero plaintext exposure on local disk
-- **Authentication**: JWT Bearer Tokens with SHA-256 PBKDF2 password hashing and user-scoped query isolation
-- **CORS Protection**: Starlette CORSMiddleware supporting local development and production domains
-
----
-
-## 5. Security, Privacy & Integrity Guarantees
-
-1. **Zero Raw PDF Disk Exposure**:
-   - Uploaded PDF bytes are ingested in memory, stored directly into MongoDB Atlas GridFS, and never written to disk as temporary files.
-2. **Owner-Scoped Multi-Tenant Isolation**:
-   - Every database query strictly filters by the authenticated `user_id`. Users cannot view, query, or delete documents or chat records belonging to other users.
-3. **Python Citation Safeguards**:
-   - Chunk IDs must exist in retrieved evidence.
-   - Quotations must match source text after Unicode NFKC and whitespace normalization.
-   - Minimum quote length (`MIN_QUOTE_MATCH_CHARS = 12`) prevents punctuation matching.
-   - Page numbers always come from trusted chunk metadata, never the LLM.
-4. **Credential Redaction**:
-   - Database connection URIs, passwords, and Groq API keys are automatically redacted in health checks, application logs, and API error responses.
+### Database & Storage
+- **Database**: MongoDB Atlas (GridFS for binary PDF chunks + native collections for metadata)
+- **Authentication**: JWT Bearer tokens with SHA-256 PBKDF2 password hashing
+- **Local Fallback**: Automatically falls back to local data store (`data/local_users.json`) if MongoDB URI is omitted, allowing complete offline functionality
 
 ---
 
-## 6. Local Quick Start
+## 6. API Endpoints Reference
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `POST` | `/api/v1/auth/register` | Register new user account (salted PBKDF2) | No |
+| `POST` | `/api/v1/auth/login` | Authenticate user & issue JWT Bearer Token | No |
+| `GET` | `/api/v1/auth/me` | Retrieve profile of the current authenticated user | Yes |
+| `GET` | `/api/v1/policies` | List all uploaded policies for the authenticated user | Yes |
+| `POST` | `/api/v1/policies/upload` | Upload policy PDF (ingested into MongoDB GridFS) | Yes |
+| `GET` | `/api/v1/policies/{id}` | Retrieve policy details, metadata, and extracted facts | Yes |
+| `DELETE` | `/api/v1/policies/{id}` | Cascading deletion of policy, chunks, and chat history | Yes |
+| `POST` | `/api/v1/qa/ask` | Ask coverage question (Intent routing + Verbatim quotes) | Yes |
+| `GET` | `/api/v1/qa/conversations` | Retrieve past Q&A conversations list | Yes |
+| `GET` | `/api/v1/qa/conversations/{id}` | Fetch full message thread for a policy conversation | Yes |
+| `POST` | `/api/v1/scenarios/evaluate` | Deterministic evaluation of waiting periods & co-pay | Yes |
+| `POST` | `/api/v1/rehearsal/simulate` | Run pre-hospitalization claim rehearsal simulation | Yes |
+| `GET` | `/api/v1/rehearsal/history` | Retrieve past claim rehearsal records | Yes |
+| `POST` | `/api/v1/comparison/matrix` | Compare two policies across 7 standardized dimensions | Yes |
+| `GET` | `/api/v1/dashboard/metrics` | Retrieve aggregated portfolio & policy analytics | Yes |
+| `GET` | `/api/v1/health` | System health check (Database, Storage, & AI status) | No |
+
+---
+
+## 7. Local Setup & Quick Start
 
 ### Prerequisites
-- **Python**: Version 3.11 or higher
-- **Node.js**: Version 18 or higher (with `npm`)
-- **MongoDB Atlas**: Free Tier cluster URI (optional — runs in in-memory session mode if omitted)
+- **Python**: 3.11 or higher
+- **Node.js**: 18.0 or higher (with `npm`)
 - **Groq API Key**: Free API key from [console.groq.com](https://console.groq.com)
+- **MongoDB Atlas** (Optional): Free M0 cluster URI (runs locally if omitted)
 
-### 1. Clone & Set Up Python Environment
+---
+
+### Step 1: Clone Repository & Setup Backend
 
 ```powershell
-# Clone the repository
+# 1. Clone repository
 git clone https://github.com/<your-username>/coverscope.git
 cd coverscope
 
-# Create and activate Python virtual environment
-py -m venv .venv
+# 2. Create and activate Python virtual environment
+python -m venv .venv
+# On Windows (PowerShell):
 .\.venv\Scripts\Activate.ps1
+# On macOS / Linux:
+# source .venv/bin/activate
 
-# Install backend dependencies
+# 3. Upgrade pip and install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2. Set Up Frontend Dependencies
+---
+
+### Step 2: Configure Environment Variables
+
+Create a `.env` file in the repository root (or copy from `.env.example`):
+
+```dotenv
+# AI LLM Provider (Required for natural language Q&A)
+GROQ_API_KEY=gsk_your_groq_api_key_here
+COVERSCOPE_GROQ_MODEL=openai/gpt-oss-120b
+
+# Database Persistence (Optional: falls back to local data store if omitted)
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=CoverScope
+MONGODB_DATABASE=coverscope
+
+# Security & JWT Token Signing
+COVERSCOPE_JWT_SECRET=super_secret_production_key_replace_with_32_random_bytes
+```
+
+---
+
+### Step 3: Install Frontend Dependencies
 
 ```powershell
 npm install --prefix frontend
 ```
 
-### 3. Configure Environment Variables
+---
 
-Create a `.env` file in the repository root (copied from `.env.example`):
+### Step 4: Run the Application
 
-```dotenv
-# AI LLM Provider (Required for Ask My Policy)
-GROQ_API_KEY=gsk_your_groq_api_key_here
-COVERSCOPE_GROQ_MODEL=openai/gpt-oss-120b
-
-# MongoDB Atlas Persistence (Optional: falls back to in-memory mode if unset)
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=CoverScope
-MONGODB_DATABASE=coverscope
-
-# Security & JWT Configuration
-COVERSCOPE_JWT_SECRET=super_secret_production_key_replace_with_32_random_bytes
-```
-
-### 4. Run CoverScope
-
-#### Option A: Run Full Stack (Development Mode)
+#### Option A: Full-Stack Development Mode (Dual Process)
 
 In **Terminal 1** (Start FastAPI Backend):
 ```powershell
 python -m backend.main
 ```
-*Backend API will run at `http://localhost:8000` (Interactive Swagger docs at `http://localhost:8000/docs`).*
+*Backend runs on `http://localhost:8000` (Interactive Swagger docs: `http://localhost:8000/docs`).*
 
 In **Terminal 2** (Start React Frontend with Vite HMR):
 ```powershell
 npm run dev --prefix frontend
 ```
-*Frontend will be live at `http://localhost:5173`.*
+*Frontend will launch at `http://localhost:5173`.*
 
 #### Option B: Standalone Unified Production Server
-Because the React app is pre-compiled under `frontend/dist/`, running `python -m backend.main` alone serves the complete React SPA directly at `http://localhost:8000/`!
+Because the React single page app compiles directly into `frontend/dist/`, running `python -m backend.main` serves the complete React SPA, API routes, and static assets from `http://localhost:8000/` in a single command!
 
 ---
 
-## 7. Production Deployment (Vercel + Render)
+## 8. Production Cloud Deployment
 
-CoverScope is pre-configured for a modern decoupled cloud deployment:
+CoverScope is engineered for decoupled cloud deployment:
 
-### Backend Deployment (Render)
+### Backend Deployment (Render / Railway / AWS ECS)
+1. **Docker Runtime**: The repository includes a production-ready `Dockerfile`. Render auto-detects it.
+2. Set Environment Variables: `GROQ_API_KEY`, `MONGODB_URI`, `COVERSCOPE_JWT_SECRET`, and `PYTHONPATH=.`.
+3. Set Health Check path to `/api/v1/health`.
 
-**Option A — Docker (recommended; Render auto-detects the root `Dockerfile`)**
-1. Create a **Web Service** with runtime **Docker**. Leave Build/Start commands empty; the image's `CMD` reads Render's `$PORT`.
-2. Set the environment variables listed below.
-3. Set the health check path to `/api/v1/health`.
-
-> `pymupdf` is intentionally capped at `<2.0` in `requirements.txt`. PyMuPDF 2.x
-> pulls in `onnxruntime`, `numpy`, `pymupdf-layout`, and `pymupdf4llm`, which adds
-> roughly 170 MB and gets pip killed on small build instances.
-
-**Option B — native Python runtime**
-1. Link your repository to [Render](https://render.com) and create a **Web Service**.
-2. **Environment**: `Python 3`
-3. **Build Command**:
-   ```bash
-   pip install --upgrade pip && pip install -r requirements.txt
-   ```
-4. **Start Command**:
-   ```bash
-   uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-   ```
-5. **Environment Variables**: Add `MONGODB_URI`, `GROQ_API_KEY`, `COVERSCOPE_JWT_SECRET`, `COVERSCOPE_GROQ_MODEL`, and `PYTHONPATH=.`.
-
-### Frontend Deployment (Vercel)
-1. Import the repository into [Vercel](https://vercel.com).
+### Frontend Deployment (Vercel / Netlify)
+1. Link your Git repository to **Vercel**.
 2. Set **Root Directory** to `frontend`.
 3. Set **Framework Preset** to `Vite`.
-4. Add Environment Variable:
-   - `VITE_API_BASE_URL`: `https://<your-render-backend-name>.onrender.com`
-5. The included [`frontend/vercel.json`](file:///d:/MERN_ENDTERM_PROJECT/frontend/vercel.json) automatically handles SPA client-side routing (`/*` -> `/index.html`).
+4. Configure Environment Variable:
+   - `VITE_API_BASE_URL`: `https://<your-backend-api-domain>.com`
+5. The included [`frontend/vercel.json`](file:///d:/MERN_ENDTERM_PROJECT/frontend/vercel.json) handles SPA client-side routing automatically.
 
 ---
 
-## 8. Test Suite & Verification
+## 9. Testing, Benchmark & Quality Verification
 
-CoverScope maintains a 100% offline-evaluable automated test suite covering all layers:
+CoverScope includes a 100% offline-evaluable automated test suite:
 
 ```powershell
 # Run the complete test suite
 pytest -q
 ```
 
-### Test Coverage Highlights:
-- **Unit & Normalization Tests**: NFKC ligatures, character limits, quotation substring validation.
-- **Domain Engine Tests**: Pre-existing disease duration conversions (years to months), initial waiting period accidental injury waivers, co-payment threshold matching.
-- **Contract & API Isolation Tests**: Dual policy ID resolution (MongoDB `_id` vs fingerprint), owner-scoped upload isolation, cascading conversation/analysis deletion, and citation tolerance.
-- **Current Status**: **229 passed, 1 skipped, 0 failed**.
+```text
+........................................................................ [ 25%]
+........................................................................ [ 50%]
+........................................................s............... [ 75%]
+......................................................................   [100%]
+===================== 285 passed, 1 skipped in 18.38s =====================
+```
+
+### What the Test Suite Verifies:
+1. **Evidence Grounding**: Mathematical verification of Unicode NFKC normalization and quote boundaries.
+2. **Deterministic Waiting Periods**: Pre-existing disease duration conversions (years to months) and 30-day initial illness waivers.
+3. **Claim Rehearsal Accuracy**: Correct computation of room-rent proportionate deductions, procedural sublimits, and out-of-pocket liabilities.
+4. **Tenant Isolation**: Multi-tenant database boundary verification (users cannot query or delete unowned records).
+5. **Contract Compatibility**: Dual-ID resolution (MongoDB `_id` vs SHA-256 fingerprint) and cascading resource destruction.
 
 ---
 
-## 9. Repository Layout
+## 10. Project Directory Layout
 
 ```text
 coverscope/
-├── backend/
-│   ├── api/                   # FastAPI routes (auth, policies, qa, scenarios, rehearsal, etc.)
-│   ├── database/              # MongoDB client, repositories, GridFS file storage, indexes
-│   ├── document_processing/   # PyMuPDF extraction, normalization, chunking, quality checks
-│   ├── domain/                # Canonical domain models, deterministic scenario & comparison engines
-│   ├── llm/                   # Resilient Groq client with JSON code-block parsing & error mapping
-│   ├── qa/                    # Lexical retrieval ranking, citation verifier, and workflow helpers
-│   ├── services/              # Headless PolicyService, AuthService, and ClaimRehearsalService
-│   ├── config.py              # Central Pydantic settings & environment configuration
-│   └── main.py                # FastAPI application entry point, lifespan, & CORS setup
-├── frontend/
+├── backend/                       # Python FastAPI Application Core
+│   ├── api/                       # REST endpoints (auth, policies, qa, scenarios, rehearsal, etc.)
+│   ├── database/                  # MongoDB Atlas client, repositories, GridFS storage, indexes
+│   ├── document_processing/       # PyMuPDF text extraction, Unicode NFKC normalizer, chunker
+│   ├── domain/                    # Deterministic rule engines, scenario & comparison models
+│   ├── llm/                       # Resilient Groq Cloud SDK client & error handlers
+│   ├── qa/                        # Intent classifier, BM25 retrieval ranker, citation verifier
+│   ├── services/                  # Headless business services (PolicyService, AuthService, etc.)
+│   ├── config.py                  # Pydantic application settings & environment schema
+│   └── main.py                    # Server entrypoint, CORS configuration & lifespan events
+├── frontend/                      # React 18 + TypeScript + Vite Single Page Application
 │   ├── src/
-│   │   ├── components/        # Navbar, badge renderers, and reusable UI elements
-│   │   ├── context/           # AuthContext (login state, user profile, token persistence)
-│   │   ├── layouts/           # AppLayout with responsive header & navigation
-│   │   ├── lib/               # Typed API client, error handling, and TypeScript interfaces
-│   │   └── pages/             # Dashboard, Ask, Explorer, Scenarios, Rehearsal, Comparison, Library
-│   ├── index.html             # HTML entry point
-│   ├── package.json           # Frontend dependencies & build scripts
-│   ├── tailwind.config.js     # InsurTech color palette & design tokens
-│   └── vite.config.ts         # Vite bundler configuration & local API proxy
-├── pdfs/                      # Bundled public baseline demonstration policy
-├── scripts/                   # Database migration, health checks, CLI utilities
-├── tests/                     # 229 automated offline pytest test cases
-├── .env.example               # Template for environment variables
-├── requirements.txt           # Python dependencies
-└── README.md                  # System documentation
+│   │   ├── components/            # Reusable components (Navbar, Footer, CardTilt, Badges)
+│   │   ├── context/               # AuthContext (JWT session state, token persistence)
+│   │   ├── layouts/               # AppLayout (ChatGPT-style dual pane & standard layouts)
+│   │   ├── lib/                   # Typed API client, TypeScript definitions, helpers
+│   │   └── pages/                 # AskPolicy, ClaimRehearsal, Explorer, Comparison, Dashboard
+│   ├── package.json               # Frontend dependencies & npm scripts
+│   ├── tailwind.config.js         # Healthcare InsurTech color palette & design tokens
+│   └── vite.config.ts             # Vite bundler configuration & backend API reverse proxy
+├── evaluation/                    # Ground-truth benchmarks & gold fact datasets
+│   ├── comparison_benchmarks.json # Standardized comparison evaluation dimensions
+│   ├── gold_facts.json            # Verified policy facts for offline evaluation tests
+│   ├── questions.json             # Benchmark QA evaluation suite
+│   └── schedule_benchmarks.json   # Waiting period & sublimit evaluation benchmarks
+├── pdfs/                          # Public benchmark insurance policy schedules
+├── scripts/                       # Operational CLI utilities, DB healthcheck, and smoke tests
+├── tests/                         # Comprehensive 285-test automated test suite
+├── .env.example                   # Environment variable template
+├── Dockerfile                     # Multi-stage production container definition
+├── package.json                   # Root monorepo workspace orchestration
+├── pytest.ini                     # Pytest configuration
+├── requirements.txt               # Pinned Python backend dependencies
+└── README.md                      # Platform documentation
 ```
 
 ---
 
-## 10. Disclaimer
+## 11. Legal Disclaimer
 
-*CoverScope is an automated informational intelligence tool designed to assist policyholders in understanding insurance policy wordings. It does not constitute legal advice, insurance underwriting, or a formal claim settlement guarantee. All claim adjudications are governed strictly by the respective insurance company and the terms of your active Policy Schedule.*
+> [!IMPORTANT]
+> **CoverScope is an automated informational intelligence and pre-admission simulation tool** designed to assist policyholders in understanding dense policy wording and contractual provisions. It does **not** constitute legal advice, insurance underwriting, or a formal claim settlement guarantee. All final claim settlements, pre-authorizations, and coverage decisions are governed strictly by the respective insurance company and the terms stated in your active Policy Schedule and IRDAI regulations.
+
+---
+
+<p align="center">
+  Built with ❤️ for Indian policyholders • Engineered for clinical evidence integrity and zero-trust certainty.
+</p>

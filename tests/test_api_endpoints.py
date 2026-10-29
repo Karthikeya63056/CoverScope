@@ -305,3 +305,15 @@ def test_dashboard_summary_api(auth_headers):
     assert "total_policies" in data
     assert "database_status" in data
     assert isinstance(data["recent_policies"], list)
+
+
+def test_conversations_listing_and_deletion_api(auth_headers):
+    # Test listing conversations
+    res = client.get("/api/v1/qa/conversations", headers=auth_headers)
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+
+    # Test deleting a nonexistent conversation ID gracefully returns success=False
+    del_res = client.delete("/api/v1/qa/conversations/nonexistent_id", headers=auth_headers)
+    assert del_res.status_code == 200
+    assert del_res.json()["success"] is False

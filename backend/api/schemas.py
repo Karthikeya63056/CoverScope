@@ -109,6 +109,7 @@ class CitationItem(BaseModel):
 class AskQuestionRequest(BaseModel):
     policy_id: str
     question: str
+    conversation_id: str | None = None
 
 
 class AskQuestionResponse(BaseModel):
@@ -130,6 +131,15 @@ class MessageItem(BaseModel):
     content: str
     created_at: str
     evidence_metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConversationSummaryItem(BaseModel):
+    id: str
+    policy_id: str
+    title: str
+    created_at: str
+    updated_at: str
+    message_count: int = 0
 
 
 class ConversationHistoryResponse(BaseModel):

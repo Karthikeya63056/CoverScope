@@ -404,6 +404,8 @@ class ConversationRepository:
         user_id: str,
         policy_id: str,
         title: str | None = None,
+        conversation_id: str | None = None,
+        create_new: bool = False,
     ) -> str:
         """Retrieve active conversation or create a new one scoped to user and policy."""
         clean_uid = _validate_user_id(user_id)
@@ -411,6 +413,27 @@ class ConversationRepository:
             raise ValueError("policy_id is required.")
 
         now = datetime.now(timezone.utc)
+        if conversation_id and conversation_id.strip():
+            try:
+                c_oid = _parse_object_id(conversation_id, "conversation_id")
+                conv = self.conv_coll.find_one({"_id": c_oid, "user_id": clean_uid})
+                if conv is not None:
+                    self.conv_coll.update_one({"_id": c_oid}, {"$set": {"updated_at": now}})
+                    return str(conv["_id"])
+            except Exception:
+                pass
+
+        if create_new:
+            doc = {
+                "user_id": clean_uid,
+                "policy_id": policy_id.strip(),
+                "title": (title or "Policy Q&A Consultation").strip(),
+                "created_at": now,
+                "updated_at": now,
+            }
+            res = self.conv_coll.insert_one(doc)
+            return str(res.inserted_id)
+
         filter_doc = {
             "user_id": clean_uid,
             "policy_id": policy_id.strip(),
@@ -536,6 +559,17 @@ class ConversationRepository:
             self.conv_coll.delete_one({"_id": c["_id"], "user_id": clean_uid})
             count += 1
         return count
+
+    def delete_conversation(self, user_id: str, conversation_id: str) -> bool:
+        """Delete a single conversation and its messages strictly scoped to user_id."""
+        clean_uid = _validate_user_id(user_id)
+        c_oid = _parse_object_id(conversation_id, "conversation_id")
+        conv = self.conv_coll.find_one({"_id": c_oid, "user_id": clean_uid})
+        if not conv:
+            return False
+        self.msg_coll.delete_many({"conversation_id": str(c_oid), "user_id": clean_uid})
+        res = self.conv_coll.delete_one({"_id": c_oid, "user_id": clean_uid})
+        return res.deleted_count > 0
 
 
 class AnalysisRepository:

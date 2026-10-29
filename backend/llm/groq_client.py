@@ -29,6 +29,7 @@ from backend.llm.errors import (
 from backend.qa.schemas import ANSWER_JSON_SCHEMA
 
 DEFAULT_MODEL = "openai/gpt-oss-120b"
+DEFAULT_FALLBACK_MODEL = "openai/gpt-oss-20b"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
 DEFAULT_MAX_COMPLETION_TOKENS = 2_500
@@ -44,6 +45,7 @@ class GroqClient:
         *,
         api_key: str | None = None,
         model: str = DEFAULT_MODEL,
+        fallback_model: str | None = DEFAULT_FALLBACK_MODEL,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -85,6 +87,11 @@ class GroqClient:
 
         self._client = sdk_client
         self.model = model.strip()
+        self.fallback_model = (
+            fallback_model.strip()
+            if fallback_model and fallback_model.strip()
+            else None
+        )
         self.timeout = timeout
         self.max_completion_tokens = max_completion_tokens
         self.max_retries = max_retries
@@ -161,13 +168,33 @@ class GroqClient:
         return parsed
 
     def _request_with_retries(self, payload: dict) -> Any:
+        import logging
+        logger = logging.getLogger(__name__)
         last_error: LLMError | None = None
+        current_payload = dict(payload)
+
         for attempt in range(self.max_retries + 1):
             try:
-                return self._client.chat.completions.create(**payload)
+                return self._client.chat.completions.create(**current_payload)
             except Exception as exc:  # SDK-specific exceptions are mapped below
                 mapped = self._map_exception(exc)
                 last_error = mapped
+
+                # If primary model hits rate limit and a fallback model is available, switch immediately
+                if (
+                    isinstance(mapped, LLMRateLimitError)
+                    and self.fallback_model
+                    and current_payload.get("model") != self.fallback_model
+                ):
+                    logger.warning(
+                        "Rate limit on %s. Retrying with fallback model %s",
+                        current_payload.get("model"),
+                        self.fallback_model,
+                    )
+                    current_payload["model"] = self.fallback_model
+                    self._sleep(self._retry_delay(exc, attempt))
+                    continue
+
                 retryable = isinstance(
                     mapped,
                     (

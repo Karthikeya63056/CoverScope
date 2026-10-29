@@ -378,3 +378,98 @@ def test_verify_citations_rejects_percentage_contradiction():
     assert "percentage" in problems[0] and "contradicts" in problems[0]
 
 
+def test_deductible_barrier_corrects_covered_verdict():
+    source_text = (
+        "Hospital Cash Benefit. The Company will pay a Cash Benefit for each completed day. "
+        "This benefit is subject to 1 day Deductible."
+    )
+    chunk = PolicyChunk("P10-C1", 10, source_text)
+    # Mock model incorrectly asserting covered for a 1-day stay
+    payload = {
+        "verdict": "covered",
+        "answer": "Yes, you will receive the hospital cash benefit for a 1-day hospitalization.",
+        "citations": [{"chunk_id": "P10-C1", "quote": "The Company will pay a Cash Benefit for each completed day."}],
+        "confidence": "high",
+        "caveats": [],
+    }
+    client = FakeClient(payload)
+    res = answer_question("If I am hospitalized for 1 day, will I receive the hospital cash benefit?", [chunk], client)
+    assert res.verdict == "excluded"
+    assert "1 day Deductible" in res.answer
+    assert any("mandatory 1-day deductible on Hospital Cash" in c for c in res.caveats)
+
+
+def test_deductible_barrier_does_not_exclude_room_rent_for_1_day_stay():
+    # Crucial safety check: 1-day deductible on Hospital Cash must NOT exclude Room Rent for 1-day stay
+    cash_chunk = PolicyChunk("P10-C1", 10, "Hospital Cash Benefit is subject to 1 day Deductible.")
+    room_chunk = PolicyChunk("P4-C1", 4, "Room Rent (Single Private A/C Room) is covered up to Sum Insured.")
+    payload = {
+        "verdict": "covered",
+        "answer": "Room rent is covered for a 1-day hospital stay up to Sum Insured.",
+        "citations": [{"chunk_id": "P4-C1", "quote": "Room Rent (Single Private A/C Room) is covered"}],
+        "confidence": "high",
+        "caveats": [],
+    }
+    client = FakeClient(payload)
+    res = answer_question("Will hospital room rent be covered for a 1-day stay?", [cash_chunk, room_chunk], client)
+    # Room rent must remain covered, NOT excluded by the hospital cash deductible!
+    assert res.verdict == "covered"
+    assert "Room rent is covered" in res.answer
+
+
+def test_tiered_limits_without_stated_si_qualifies_to_depends():
+    source_text = (
+        "Out-patient Dental and Ophthalmic Treatment. "
+        "Limit for Outpatient Dental and Ophthalmic Treatments for each block of 3 continuous years: "
+        "5,00,000/- and 7,50,000/-: 5,000/-; 10,00,000/- to 25,00,000/-: 10,000/-."
+    )
+    chunk = PolicyChunk("P10-C1", 10, source_text)
+    payload = {
+        "verdict": "covered",
+        "answer": "Yes, you can claim 10,000 for outpatient dental treatment in the first month.",
+        "citations": [{"chunk_id": "P10-C1", "quote": "10,00,000/- to 25,00,000/-: 10,000/-"}],
+        "confidence": "high",
+        "caveats": [],
+    }
+    client = FakeClient(payload)
+    res = answer_question(
+        "Can I claim 10,000 for outpatient dental treatment in the very first month of taking the policy?",
+        [chunk],
+        client,
+    )
+    assert res.verdict == "depends"
+    assert any("Sum Insured tier" in c for c in res.caveats)
+
+
+def test_dual_route_infant_scope_adds_caveat():
+    source_text = "For Dependent Children: 91 days to 25 years (Floater Policy)."
+    chunk = PolicyChunk("P3-C1", 3, source_text)
+    payload = {
+        "verdict": "excluded",
+        "answer": "No, a 2-month infant does not meet the 91-day minimum age.",
+        "citations": [{"chunk_id": "P3-C1", "quote": "For Dependent Children: 91 days to 25 years"}],
+        "confidence": "high",
+        "caveats": [],
+    }
+    client = FakeClient(payload)
+    res = answer_question(
+        "Can a 2-month-old newborn infant be covered under this policy as a dependent child?",
+        [chunk],
+        client,
+    )
+    assert res.verdict == "excluded"
+    assert any("91 days" in c and "Delivery and New Born" in c for c in res.caveats)
+
+
+def test_conversational_greeting_returns_friendly_prompt():
+    chunk = PolicyChunk("P1-C1", 1, "Any policy text here")
+    client = FakeClient({})
+    res = answer_question("hi", [chunk], client)
+    assert res.verdict == "not_stated"
+    assert res.confidence == "high"
+    assert "CoverScope" in res.answer
+    assert client.calls == 0  # Does not waste LLM tokens on simple greeting
+
+
+
+
