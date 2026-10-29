@@ -132,3 +132,11 @@
     animation: glow-shift 14s ease-in-out infinite;
   }
 }
+
+/* Dashboard Micro-Interactions */
+.dashboard-card-hover {
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.dashboard-card-hover:hover {
+  box-shadow: 0 14px 30px -6px rgba(15, 23, 42, 0.12), 0 6px 12px -4px rgba(16, 185, 129, 0.08);
+}

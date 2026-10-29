@@ -91,7 +91,11 @@ async function request<T>(
     // If unauthorized, clear invalid session
     if (!endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
       clearAuthSession();
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      if (
+        window.location.pathname !== '/login' &&
+        window.location.pathname !== '/register' &&
+        window.location.pathname !== '/'
+      ) {
         window.location.href = '/login';
       }
     }

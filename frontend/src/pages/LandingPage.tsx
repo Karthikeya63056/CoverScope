@@ -40,6 +40,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { Footer } from '../components/Footer';
 
 // Register GSAP ScrollTrigger plugin once
 gsap.registerPlugin(ScrollTrigger);
@@ -2015,58 +2016,9 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ===================================================================== */}
-      {/* INSTITUTIONAL FOOTER */}
+      {/* INSTITUTIONAL PROFESSIONAL FOOTER                                     */}
       {/* ===================================================================== */}
-      <footer className="border-t border-slate-200 bg-white py-12 text-xs text-slate-500">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pb-8 border-b border-slate-100">
-            {/* Identity */}
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
-                <Shield className="h-4 w-4" />
-              </div>
-              <span className="text-base font-bold text-slate-900">CoverScope</span>
-              <span className="text-slate-400">&bull; Your policy. Made clear.</span>
-            </div>
-
-            {/* Quick footer links */}
-            <div className="flex flex-wrap items-center gap-6">
-              <a href="#problem" className="hover:text-emerald-700 transition-colors">
-                The Problem
-              </a>
-              <a href="#transformation" className="hover:text-emerald-700 transition-colors">
-                Clause Grounding
-              </a>
-              <a href="#capabilities" className="hover:text-emerald-700 transition-colors">
-                Capabilities
-              </a>
-              <a href="#financial-impact" className="hover:text-emerald-700 transition-colors">
-                Financial Impact
-              </a>
-              <a href="#workflow" className="hover:text-emerald-700 transition-colors">
-                Workflow
-              </a>
-              <a href="#faq" className="hover:text-emerald-700 transition-colors">
-                FAQ
-              </a>
-              <Link to="/login" className="hover:text-emerald-700 font-semibold transition-colors">
-                Sign in
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-[11px] text-slate-400">
-            <p>
-              &copy; {new Date().getFullYear()} CoverScope Technologies. All rights reserved.
-            </p>
-            <p className="max-w-md text-left sm:text-right">
-              CoverScope provides informational document intelligence and does not issue insurance
-              policies or guarantee claim approval. Always refer to your insurer&apos;s official policy
-              schedule.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer isLanding={true} />
     </div>
   );
 };

@@ -34,7 +34,7 @@ def get_dashboard_summary(current_user: AuthUser = Depends(get_current_user)) ->
     health = check_mongodb_health()
     db_status = health.status.value
 
-    if db is not None:
+    if db is not None and health.is_connected:
         try:
             p_repo = PolicyRepository(db)
             c_repo = ConversationRepository(db)

@@ -127,7 +127,7 @@ async def upload_policy(
                 except Exception:
                     pass
             logger.warning("Could not persist policy metadata to MongoDB: %s", exc)
-    else:
+    if not gridfs_id:
         # Offline / test fallback in process memory (never written to local disk)
         store_offline_raw_policy(current_user.user_id, policy.fingerprint, policy.filename, content)
 
@@ -207,6 +207,35 @@ def list_policies(current_user: AuthUser = Depends(get_current_user)) -> PolicyL
                     },
                 )
             )
+
+    # 3. Check for offline stored raw policies belonging to user if not already present
+    from backend.api.deps import _OFFLINE_RAW_BYTES
+    prefix = f"{current_user.user_id}:"
+    for key, (raw_bytes, fname) in list(_OFFLINE_RAW_BYTES.items()):
+        if key.startswith(prefix):
+            doc_hash = key[len(prefix):]
+            if doc_hash not in seen_hashes:
+                cached_rebuilt = get_cached_policy(doc_hash, current_user.user_id)
+                if cached_rebuilt and cached_rebuilt.fingerprint not in seen_hashes:
+                    seen_hashes.add(cached_rebuilt.fingerprint)
+                    items.append(
+                        PolicySummary(
+                            id=cached_rebuilt.fingerprint,
+                            policy_id=cached_rebuilt.fingerprint,
+                            document_name=cached_rebuilt.filename,
+                            filename=cached_rebuilt.filename,
+                            document_hash=cached_rebuilt.fingerprint,
+                            page_count=cached_rebuilt.page_count,
+                            total_characters=cached_rebuilt.extracted_characters,
+                            total_chunks=len(cached_rebuilt.chunks),
+                            processing_status="processed",
+                            status="offline",
+                            metadata={
+                                "char_count": cached_rebuilt.extracted_characters,
+                                "chunk_count": len(cached_rebuilt.chunks),
+                            },
+                        )
+                    )
 
     return PolicyListResponse(policies=items, total=len(items))
 
@@ -408,37 +437,40 @@ def delete_policy(
     candidate_ids = {policy_id}
 
     if db is not None:
-        repo = PolicyRepository(db)
-        # 1. Resolve all linked identifiers (MongoDB _id and SHA256 document_hash) BEFORE deleting the policy record
-        doc = repo.get_policy(current_user.user_id, policy_id)
-        if not doc:
-            doc = repo.get_policy_by_hash(current_user.user_id, policy_id)
-        if doc:
-            if doc.get("id"):
-                candidate_ids.add(str(doc["id"]))
-            if doc.get("document_hash"):
-                candidate_ids.add(str(doc["document_hash"]))
-
-        cached = get_cached_policy(policy_id, current_user.user_id)
-        if cached:
-            candidate_ids.add(cached.fingerprint)
-
-        # 2. Cascading deletion of user's conversations and analysis audit records for this policy
         try:
-            conv_repo = ConversationRepository(db)
-            analysis_repo = AnalysisRepository(db)
-            for cid in candidate_ids:
-                conv_repo.delete_conversations_for_policy(current_user.user_id, cid)
-                analysis_repo.delete_analyses_for_policy(current_user.user_id, cid)
-        except Exception as exc:
-            logger.debug("Cascading cleanup warning during delete_policy: %s", exc)
+            repo = PolicyRepository(db)
+            # 1. Resolve all linked identifiers (MongoDB _id and SHA256 document_hash) BEFORE deleting the policy record
+            doc = repo.get_policy(current_user.user_id, policy_id)
+            if not doc:
+                doc = repo.get_policy_by_hash(current_user.user_id, policy_id)
+            if doc:
+                if doc.get("id"):
+                    candidate_ids.add(str(doc["id"]))
+                if doc.get("document_hash"):
+                    candidate_ids.add(str(doc["document_hash"]))
 
-        # 3. Delete policy metadata and GridFS raw file
-        for cid in candidate_ids:
-            if repo.delete_policy(current_user.user_id, cid):
-                deleted = True
-            elif repo.delete_policy_by_hash(current_user.user_id, cid):
-                deleted = True
+            cached = get_cached_policy(policy_id, current_user.user_id)
+            if cached:
+                candidate_ids.add(cached.fingerprint)
+
+            # 2. Cascading deletion of user's conversations and analysis audit records for this policy
+            try:
+                conv_repo = ConversationRepository(db)
+                analysis_repo = AnalysisRepository(db)
+                for cid in candidate_ids:
+                    conv_repo.delete_conversations_for_policy(current_user.user_id, cid)
+                    analysis_repo.delete_analyses_for_policy(current_user.user_id, cid)
+            except Exception as exc:
+                logger.debug("Cascading cleanup warning during delete_policy: %s", exc)
+
+            # 3. Delete policy metadata and GridFS raw file
+            for cid in candidate_ids:
+                if repo.delete_policy(current_user.user_id, cid):
+                    deleted = True
+                elif repo.delete_policy_by_hash(current_user.user_id, cid):
+                    deleted = True
+        except Exception as exc:
+            logger.warning("Database error during delete_policy: %s", exc)
 
     cache_removed = False
     for cid in candidate_ids:

@@ -515,13 +515,18 @@ class ConversationRepository:
         clean_pid = policy_id.strip()
         candidates = [clean_pid]
         try:
-            p = self.conv_coll.database[COLL_POLICIES].find_one({"_id": _parse_object_id(clean_pid), "user_id": clean_uid})
-            if p and p.get("document_hash"):
-                candidates.append(p["document_hash"])
-        except ValueError:
-            p = self.conv_coll.database[COLL_POLICIES].find_one({"document_hash": clean_pid, "user_id": clean_uid})
+            try:
+                oid = _parse_object_id(clean_pid)
+                p = self.conv_coll.database[COLL_POLICIES].find_one({"_id": oid, "user_id": clean_uid})
+            except ValueError:
+                p = self.conv_coll.database[COLL_POLICIES].find_one({"document_hash": clean_pid, "user_id": clean_uid})
             if p:
-                candidates.append(str(p["_id"]))
+                if p.get("document_hash"):
+                    candidates.append(p["document_hash"])
+                if p.get("_id"):
+                    candidates.append(str(p["_id"]))
+        except Exception as exc:
+            logger.debug("Dual identifier resolution warning: %s", exc)
 
         convs = list(self.conv_coll.find({"user_id": clean_uid, "policy_id": {"$in": candidates} if len(candidates) > 1 else clean_pid}))
         count = 0
@@ -582,13 +587,18 @@ class AnalysisRepository:
             clean_pid = policy_id.strip()
             candidates = [clean_pid]
             try:
-                p = self.db[COLL_POLICIES].find_one({"_id": _parse_object_id(clean_pid), "user_id": clean_uid})
-                if p and p.get("document_hash"):
-                    candidates.append(p["document_hash"])
-            except ValueError:
-                p = self.db[COLL_POLICIES].find_one({"document_hash": clean_pid, "user_id": clean_uid})
+                try:
+                    oid = _parse_object_id(clean_pid)
+                    p = self.db[COLL_POLICIES].find_one({"_id": oid, "user_id": clean_uid})
+                except ValueError:
+                    p = self.db[COLL_POLICIES].find_one({"document_hash": clean_pid, "user_id": clean_uid})
                 if p:
-                    candidates.append(str(p["_id"]))
+                    if p.get("document_hash"):
+                        candidates.append(p["document_hash"])
+                    if p.get("_id"):
+                        candidates.append(str(p["_id"]))
+            except Exception as exc:
+                logger.debug("Dual identifier resolution warning: %s", exc)
             query["policy_id"] = {"$in": candidates} if len(candidates) > 1 else clean_pid
 
         if analysis_type and analysis_type.strip():
@@ -614,13 +624,18 @@ class AnalysisRepository:
         clean_pid = policy_id.strip()
         candidates = [clean_pid]
         try:
-            p = self.db[COLL_POLICIES].find_one({"_id": _parse_object_id(clean_pid), "user_id": clean_uid})
-            if p and p.get("document_hash"):
-                candidates.append(p["document_hash"])
-        except ValueError:
-            p = self.db[COLL_POLICIES].find_one({"document_hash": clean_pid, "user_id": clean_uid})
+            try:
+                oid = _parse_object_id(clean_pid)
+                p = self.db[COLL_POLICIES].find_one({"_id": oid, "user_id": clean_uid})
+            except ValueError:
+                p = self.db[COLL_POLICIES].find_one({"document_hash": clean_pid, "user_id": clean_uid})
             if p:
-                candidates.append(str(p["_id"]))
+                if p.get("document_hash"):
+                    candidates.append(p["document_hash"])
+                if p.get("_id"):
+                    candidates.append(str(p["_id"]))
+        except Exception as exc:
+            logger.debug("Dual identifier resolution warning: %s", exc)
 
         res = self.coll.delete_many({"user_id": clean_uid, "policy_id": {"$in": candidates} if len(candidates) > 1 else clean_pid})
         return res.deleted_count

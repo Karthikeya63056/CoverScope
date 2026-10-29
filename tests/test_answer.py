@@ -289,3 +289,92 @@ def test_verify_citations_reports_each_bad_citation():
     )
     assert verified == ()
     assert len(problems) == 3
+
+
+def test_verify_citations_rejects_domain_mismatched_quote():
+    source_text = (
+        "Waiting Periods: Delivery Expenses and New Born: 24 months. "
+        "Bariatric Surgery: 36 months."
+    )
+    evidence = [
+        RetrievedChunk("P12-C1", 12, source_text, 1.0, ("bariatric",)),
+    ]
+    # Citation is literally in chunk, but is about maternity/newborn while query is about bariatric surgery
+    verified, problems = verify_citations(
+        [Citation(chunk_id="P12-C1", quote="Delivery Expenses and New Born: 24 months")],
+        evidence,
+        question="What is the waiting period for bariatric surgery?",
+        answer="The waiting period for bariatric surgery is 36 months.",
+    )
+    assert len(verified) == 0
+    assert len(problems) == 1
+    assert "pertains to maternity_newborn" in problems[0]
+
+
+def test_verify_citations_rejects_topically_unrelated_quote():
+    source_text = (
+        "Expenses related to the treatment of a pre-existing disease are "
+        "excluded until the expiry of 36 months of continuous coverage."
+    )
+    evidence = [
+        RetrievedChunk("P10-C1", 10, source_text, 1.0, ("room",)),
+    ]
+    # Quote is in source, but has zero content words in common with room rent inquiry
+    verified, problems = verify_citations(
+        [Citation(chunk_id="P10-C1", quote="pre-existing disease are excluded until")],
+        evidence,
+        question="What room rent category is permitted?",
+        answer="Single Private A/C Room is permitted under this policy.",
+    )
+    assert len(verified) == 0
+    assert len(problems) == 1
+    assert "does not share topical relevance" in problems[0]
+
+
+def test_verify_citations_accepts_topically_relevant_quote():
+    source_text = (
+        "Waiting Periods: Delivery Expenses and New Born: 24 months. "
+        "Bariatric Surgery: 36 months."
+    )
+    evidence = [
+        RetrievedChunk("P12-C1", 12, source_text, 1.0, ("bariatric",)),
+    ]
+    verified, problems = verify_citations(
+        [Citation(chunk_id="P12-C1", quote="Bariatric Surgery: 36 months")],
+        evidence,
+        question="What is the waiting period for bariatric surgery?",
+        answer="The waiting period for bariatric surgery is 36 months.",
+    )
+    assert len(verified) == 1
+    assert len(problems) == 0
+    assert verified[0].quote == "Bariatric Surgery: 36 months"
+
+
+def test_verify_citations_rejects_duration_contradiction():
+    source_text = "Bariatric Surgery: 36 months waiting period applies."
+    evidence = [RetrievedChunk("P12-C1", 12, source_text, 1.0, ("bariatric",))]
+    verified, problems = verify_citations(
+        [Citation(chunk_id="P12-C1", quote="Bariatric Surgery: 36 months")],
+        evidence,
+        question="What is the waiting period for bariatric surgery?",
+        answer="The waiting period for bariatric surgery is 24 months.",
+    )
+    assert len(verified) == 0
+    assert len(problems) == 1
+    assert "duration" in problems[0] and "contradicts" in problems[0]
+
+
+def test_verify_citations_rejects_percentage_contradiction():
+    source_text = "This policy is subject to Co-payment of 10% of each and every claim amount."
+    evidence = [RetrievedChunk("P4-C1", 4, source_text, 1.0, ("copay",))]
+    verified, problems = verify_citations(
+        [Citation(chunk_id="P4-C1", quote="Co-payment of 10% of each and every claim")],
+        evidence,
+        question="What is the co-payment percentage for senior citizens?",
+        answer="The mandatory co-payment for senior citizens entering above 61 is 20%.",
+    )
+    assert len(verified) == 0
+    assert len(problems) == 1
+    assert "percentage" in problems[0] and "contradicts" in problems[0]
+
+

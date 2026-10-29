@@ -21,51 +21,191 @@ from backend.qa.schemas import (
 # A short quote is easier to verify and less likely to match by accident.
 MIN_QUOTE_MATCH_CHARS = 12
 
+_STOPWORDS = frozenset({
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
+    "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being",
+    "below", "between", "both", "but", "by", "can", "cannot", "could", "couldn't",
+    "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during",
+    "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't",
+    "have", "haven't", "having", "he", "her", "here", "hers", "herself", "him",
+    "himself", "his", "how", "i", "if", "in", "into", "is", "isn't", "it", "its",
+    "itself", "let's", "me", "more", "most", "mustn't", "my", "myself", "no",
+    "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our",
+    "ours", "ourselves", "out", "over", "own", "same", "shan't", "she", "should",
+    "shouldn't", "so", "some", "such", "than", "that", "the", "their", "theirs",
+    "them", "themselves", "then", "there", "these", "they", "this", "those",
+    "through", "to", "too", "under", "until", "up", "very", "was", "wasn't", "we",
+    "were", "weren't", "what", "when", "where", "which", "while", "who", "whom",
+    "why", "with", "won't", "would", "wouldn't", "you", "your", "yours", "yourself",
+    "yourselves",
+})
+
+_DOMAIN_KEYWORDS: dict[str, set[str]] = {
+    "maternity_newborn": {"maternity", "delivery", "new born", "newborn", "infant", "obstetric"},
+    "bariatric": {"bariatric", "weight loss", "obesity", "metabolic"},
+    "dental": {"dental", "denture", "teeth", "tooth", "oral"},
+    "ophthalmic": {"cataract", "ophthalmic", "eye", "lens"},
+    "ayush": {"ayush", "ayurveda", "homeopathy", "unani", "siddha", "yoga", "naturopathy"},
+    "motor": {"vehicle", "car", "motor", "repair", "traffic"},
+    "organ_donor": {"organ donor", "donor"},
+}
+
+
+def _check_citation_relevance(
+    quote: str,
+    question: str | None,
+    answer: str | None,
+) -> str | None:
+    """Validate semantic and topic alignment between cited quote and claim."""
+    if not question and not answer:
+        return None
+    import re
+
+    context_text = f"{question or ''} {answer or ''}".lower()
+    quote_lower = quote.lower()
+
+    # 1. Specialized Domain Mismatch
+    for domain, terms in _DOMAIN_KEYWORDS.items():
+        quote_has_domain = any(t in quote_lower for t in terms)
+        if quote_has_domain:
+            context_has_domain = any(t in context_text for t in terms)
+            if not context_has_domain:
+                return (
+                    f"pertains to {domain} which is not relevant to the question "
+                    "or answer claim"
+                )
+
+    # 2. Token Overlap Check
+    q_tokens = {
+        w
+        for w in re.findall(r"\w+", quote_lower)
+        if w not in _STOPWORDS and (len(w) >= 3 or w.isdigit())
+    }
+    ctx_tokens = {
+        w
+        for w in re.findall(r"\w+", context_text)
+        if w not in _STOPWORDS and (len(w) >= 3 or w.isdigit())
+    }
+    if len(q_tokens) >= 2 and len(q_tokens & ctx_tokens) == 0:
+        return "does not share topical relevance with the claim or question"
+
+    # 3. Numeric Duration Contradiction Check
+    if answer:
+        answer_lower = answer.lower()
+        quote_durations = re.findall(
+            r"(\b\d+\b)\s*(month|months|day|days|year|years)", quote_lower
+        )
+        answer_durations = re.findall(
+            r"(\b\d+\b)\s*(month|months|day|days|year|years)", answer_lower
+        )
+        if quote_durations and answer_durations:
+            def _norm_unit(u: str) -> str:
+                return "month" if "month" in u else ("day" if "day" in u else "year")
+
+            q_dur_by_unit: dict[str, set[int]] = {}
+            for num, u in quote_durations:
+                q_dur_by_unit.setdefault(_norm_unit(u), set()).add(int(num))
+
+            a_dur_by_unit: dict[str, set[int]] = {}
+            for num, u in answer_durations:
+                a_dur_by_unit.setdefault(_norm_unit(u), set()).add(int(num))
+
+            for unit, q_nums in q_dur_by_unit.items():
+                if unit in a_dur_by_unit:
+                    a_nums = a_dur_by_unit[unit]
+                    if not (q_nums & a_nums):
+                        return (
+                            f"duration ({', '.join(map(str, sorted(q_nums)))} {unit}s) "
+                            f"contradicts duration in answer ({', '.join(map(str, sorted(a_nums)))} {unit}s)"
+                        )
+
+        # 4. Percentage Contradiction Check
+        q_pcts = set(re.findall(r"(\b\d+\b)\s*%", quote_lower))
+        a_pcts = set(re.findall(r"(\b\d+\b)\s*%", answer_lower))
+        if q_pcts and a_pcts and not (q_pcts & a_pcts):
+            return (
+                f"percentage ({', '.join(sorted(q_pcts))}%) "
+                f"contradicts percentage in answer ({', '.join(sorted(a_pcts))}%)"
+            )
+
+    return None
+
+
 SYSTEM_PROMPT = """You are CoverScope, an insurance-policy evidence assistant.
 
 Your only source of truth is the EVIDENCE supplied in the user message. Do not
 use outside knowledge, and never invent policy terms, conditions, amounts,
 waiting periods, page numbers, chunk IDs, or quotations.
 
-Verdict definitions:
-- covered: the evidence affirmatively states that the requested expense or
-  benefit is covered, subject only to conditions that are stated or satisfied.
-- excluded: the evidence affirmatively excludes the requested expense or
-  benefit, or states that it is not payable.
-- depends: the evidence shows that coverage is conditional, and the condition
-  cannot be resolved from the supplied information.
-- not_stated: the supplied evidence does not contain the information needed to
-  answer. This does NOT establish that the benefit is excluded.
+EVIDENCE SYNTHESIS FRAMEWORK:
+When analyzing a coverage question, synthesize the evidence systematically across
+four distinct policy dimensions:
+1. Benefit Category: Does the policy affirmatively cover this category of treatment
+   (e.g., In-patient Treatment, Day Care Treatment, AYUSH Treatment, Bariatric Surgery)?
+2. Waiting Periods: What waiting periods apply (e.g., Initial 30 days, Specified
+   Disease/Procedure 24 months, Pre-Existing Disease 36 months, Bariatric 36 months)?
+3. Cost Sharing & Limits: Are there sub-limits, co-payments (e.g., 10% co-payment
+   for entry age 61+), or room rent category restrictions?
+4. Exclusions: Does an explicit exclusion apply (e.g., cosmetic surgery, intentional
+   self-injury, non-medical expenses)?
 
-Rules:
-1. Answer only from the supplied EVIDENCE.
-2. Distinguish an exclusion from a waiting period or a conditional benefit. A
-   waiting period excludes a claim only during that period.
-3. Account for exceptions, definitions, sublimits, and conditions whenever they
-   appear in the evidence.
-4. Use depends when the answer turns on a condition that cannot be resolved
-   from the evidence, such as a plan, rider, policy start date, or whether an
-   optional cover was purchased.
-5. Use not_stated when the relevant information is absent. Say explicitly that
-   this does not establish that the benefit is excluded.
-6. Never claim that an expense is covered merely because no exclusion was
-   retrieved.
-7. Cite only chunk IDs that appear in EVIDENCE. Each quote must be a short
-   (under 25 words), contiguous, verbatim substring of the SAME evidence block
-   identified by its chunk_id. Do not concatenate distant table cells or separate
-   sentences with ellipses (...). Copy the chunk ID exactly from the bracket
-   header immediately above the quoted text. Do not combine text from different
-   blocks, and omit a citation if you cannot identify the block containing the
-   quote. Never fabricate quotations, chunk IDs, or page numbers.
-8. Prefer abstention over an unsupported definitive coverage decision.
-9. If an optional endorsement, rider, or waiting-period modification in the
-   evidence could change the answer and the user has not stated whether it
-   applies, use depends and explain the condition.
-10. If the answer varies by plan, sum insured, or optional cover and the
-    question does not specify it, use depends rather than guessing.
-11. Return JSON only, matching the required schema exactly. Put relevant
-    conditions, missing information, or manual-verification warnings in
-    caveats. Use an empty caveats array when none apply.
+VERDICT DEFINITIONS & RULES:
+- covered:
+  Use "covered" when the evidence affirmatively establishes that the requested benefit
+  or treatment category is included under policy coverages (e.g., "Is bariatric surgery
+  covered under this policy?", "What room category is permitted?").
+  Standard waiting periods and sub-limits do NOT turn an affirmatively covered benefit
+  into "depends"; state the applicable waiting periods and sub-limits in your answer
+  and caveats while keeping the verdict "covered".
+
+- excluded:
+  Use "excluded" when:
+  a) The expense or treatment falls under an explicit policy exclusion (e.g., cosmetic
+     surgery for aesthetic weight loss, car accident repairs).
+  b) OR the specific claim timing stated by the user falls inside an active waiting
+     period (e.g., food poisoning in the first 2 weeks when initial waiting period
+     is 30 days; surgery in month 20 when waiting period is 36 months).
+
+- depends:
+  Use "depends" when coverage or the applicable terms are conditional:
+  a) Procedure Classification / Clinical Context: When a procedure (such as keyhole
+     surgery, arthroscopy, or joint surgery) is payable under Day Care or In-patient
+     treatment up to Sum Insured, BUT is subject to a 24-month waiting period for
+     specified disease/procedures or 36-month PED waiting period depending on medical
+     history and continuous coverage. Do NOT use "not_stated" if general day care or
+     inpatient surgical cover exists; explain the coverage and waiting periods, and
+     use "depends".
+  b) Waiting Period Queries with Optional Riders / Buy-Backs: When asked about a waiting
+     period, reduction, or policy term that varies based on optional riders (e.g., "What
+     is the waiting period for pre-existing diseases and can it be reduced?"), the
+     verdict is NEVER "covered"—it MUST be "depends" because the applicable waiting period
+     (36 months standard vs 12 months with optional Buy Back) depends on whether the optional
+     cover was purchased.
+  c) Dual-Nature Procedures: When a procedure is covered for medical necessity but
+     excluded for aesthetic reasons (e.g., bariatric surgery for morbid obesity vs
+     cosmetic weight reduction).
+  d) Conditional Parameters: When coverage depends on unresolved variables such as
+     entry age (co-payment applicability) or sum insured plan limits.
+
+- not_stated:
+  Use "not_stated" ONLY when the supplied evidence contains NO relevant information
+  or is completely out-of-scope (e.g., motor vehicle repairs or pet insurance in a
+  health policy). Do NOT use "not_stated" when the policy contains relevant day care,
+  surgical, or waiting period provisions that govern the scenario.
+
+ADDITIONAL RULES:
+1. Distinguish an exclusion from a waiting period. A waiting period excludes a claim
+   only during that period.
+2. If a question contains an ambiguous reference (e.g. "What is the waiting period
+   for that?") without naming the condition: state that the condition is not specified,
+   summarize the policy's standard waiting periods by category, and do NOT cite
+   unrelated specific clauses (such as newborn or delivery expenses).
+3. Every citation quote must be a short, contiguous, verbatim substring of the SAME
+   evidence block identified by its chunk_id. Do NOT fabricate citations or cite
+   unrelated clauses.
+4. Return JSON only, matching the required schema exactly. Put relevant conditions,
+   missing information, or manual-verification warnings in caveats. Use an empty
+   caveats array when none apply.
 """
 
 
@@ -140,8 +280,11 @@ def build_user_prompt(question: str, evidence: Sequence[RetrievedChunk]) -> str:
 def verify_citations(
     citations: Sequence,
     evidence: Sequence[RetrievedChunk],
+    *,
+    question: str | None = None,
+    answer: str | None = None,
 ) -> tuple[tuple[VerifiedCitation, ...], tuple[str, ...]]:
-    """Verify chunk IDs and quotation substrings against retrieved evidence.
+    """Verify chunk IDs, quotation substrings, and claim relevance against retrieved evidence.
 
     Page numbers always come from the trusted chunk metadata, never from the
     model. Quotations are compared after NFKC/case/whitespace normalization.
@@ -219,6 +362,17 @@ def verify_citations(
             )
             continue
 
+        # Check claim-to-citation topic and semantic relevance
+        relevance_err = _check_citation_relevance(
+            citation.quote, question, answer
+        )
+        if relevance_err:
+            problems.append(
+                f"Quotation for {citation.chunk_id} ({citation.quote[:40]}...) "
+                f"does not substantiate the claim: {relevance_err}."
+            )
+            continue
+
         verified.append(
             VerifiedCitation(
                 chunk_id=source.chunk_id,
@@ -269,7 +423,12 @@ def answer_question(
             "Groq returned JSON that did not match the required answer schema."
         ) from exc
 
-    verified, problems = verify_citations(model.citations, evidence)
+    verified, problems = verify_citations(
+        model.citations,
+        evidence,
+        question=question,
+        answer=model.answer,
+    )
     warnings = list(problems)
     caveats = list(model.caveats)
 

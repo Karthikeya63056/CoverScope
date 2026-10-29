@@ -16,6 +16,15 @@ from backend.api.schemas import (
 )
 from backend.database.client import get_database
 from backend.database.repositories import ConversationRepository
+from backend.llm.errors import (
+    LLMAuthError,
+    LLMConfigError,
+    LLMConnectionError,
+    LLMRateLimitError,
+    LLMResponseError,
+    LLMServiceError,
+    LLMTimeoutError,
+)
 from backend.services.auth_service import AuthUser
 from backend.services.policy_service import PolicyService
 
@@ -45,6 +54,30 @@ def ask_question(
 
     try:
         result = policy_service.ask_question(policy, req.question.strip())
+    except (LLMAuthError, LLMConfigError) as exc:
+        logger.warning("LLM service unavailable: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"AI service unavailable: {exc}",
+        ) from exc
+    except LLMRateLimitError as exc:
+        logger.warning("LLM rate limit reached: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="AI service rate limit exceeded. Please wait a moment before trying again.",
+        ) from exc
+    except LLMTimeoutError as exc:
+        logger.warning("LLM timeout: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="The AI analysis timed out. Please try again with a shorter question.",
+        ) from exc
+    except (LLMConnectionError, LLMServiceError, LLMResponseError) as exc:
+        logger.warning("LLM provider error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI provider communication error: {exc}",
+        ) from exc
     except Exception as exc:
         logger.error("Error executing QA pipeline: %s", exc)
         raise HTTPException(
@@ -129,15 +162,15 @@ def get_conversation_history(
 
     policy = get_cached_policy(policy_id, current_user.user_id)
     if not policy:
+        doc = None
         if db is not None:
-            from backend.database.repositories import PolicyRepository
-            p_repo = PolicyRepository(db)
-            if not p_repo.get_policy(current_user.user_id, policy_id) and not p_repo.get_policy_by_hash(current_user.user_id, policy_id):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Policy not found or access denied.",
-                )
-        else:
+            try:
+                from backend.database.repositories import PolicyRepository
+                p_repo = PolicyRepository(db)
+                doc = p_repo.get_policy(current_user.user_id, policy_id) or p_repo.get_policy_by_hash(current_user.user_id, policy_id)
+            except Exception as exc:
+                logger.warning("Could not verify policy ownership in DB for history: %s", exc)
+        if not doc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Policy not found or access denied.",
@@ -183,15 +216,15 @@ def clear_conversation_history(
     db = get_database()
     policy = get_cached_policy(policy_id, current_user.user_id)
     if not policy:
+        doc = None
         if db is not None:
-            from backend.database.repositories import PolicyRepository
-            p_repo = PolicyRepository(db)
-            if not p_repo.get_policy(current_user.user_id, policy_id) and not p_repo.get_policy_by_hash(current_user.user_id, policy_id):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Policy not found or access denied.",
-                )
-        else:
+            try:
+                from backend.database.repositories import PolicyRepository
+                p_repo = PolicyRepository(db)
+                doc = p_repo.get_policy(current_user.user_id, policy_id) or p_repo.get_policy_by_hash(current_user.user_id, policy_id)
+            except Exception as exc:
+                logger.warning("Could not verify policy ownership in DB for history: %s", exc)
+        if not doc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Policy not found or access denied.",
@@ -206,10 +239,6 @@ def clear_conversation_history(
             if deleted_count == 0 and canonical_id != policy_id:
                 deleted_count = repo.delete_conversations_for_policy(current_user.user_id, canonical_id)
         except Exception as exc:
-            logger.warning("Error deleting conversation history: %s", exc)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to clear conversation history.",
-            ) from exc
+            logger.warning("Error deleting conversation history from MongoDB: %s", exc)
 
     return {"success": True, "deleted_conversations": deleted_count}

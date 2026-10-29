@@ -72,6 +72,42 @@ EXCLUSION_PATTERNS = {
 }
 
 
+def _match_treatment_keyword(pattern: str, text: str) -> bool:
+    """Safely match keyword pattern using word boundaries to prevent substring collisions."""
+    if not pattern or not text:
+        return False
+
+    # If pattern is 'delivery', only match clinical maternity/childbirth phrases
+    if pattern == "delivery":
+        if re.search(
+            r"\b(?:normal|caesarean|cesarean|vaginal|obstetric|childbirth|baby|twin)\s+delivery\b"
+            r"|\bdelivery\s+of\s+(?:baby|child|infant|newborn|twins)\b",
+            text,
+            flags=re.I,
+        ):
+            return True
+        if re.search(r"\bdelivery\s+of\b", text, flags=re.I):
+            return False
+        if re.search(r"\b(?:home|courier|fast|express|food|packet|parcel)\s+delivery\b", text, flags=re.I):
+            return False
+        return bool(re.search(r"\b(?:normal\s+|baby\s+|maternity\s+)?delivery\b", text, flags=re.I))
+
+    # Avoid matching 'milestone' or non-clinical usage for 'stone'
+    if pattern == "stone":
+        if re.search(r"\bmilestone\b", text, flags=re.I):
+            return False
+        return bool(re.search(r"\b(?:gall|kidney\s+|bladder\s+)?stones?\b", text, flags=re.I))
+
+    # Avoid matching negated terms like 'non-cosmetic'
+    if pattern in ("cosmetic", "aesthetic"):
+        return bool(re.search(r"(?<!non-)\b" + re.escape(pattern) + r"(?:e?s)?\b", text, flags=re.I))
+
+    escaped = re.escape(pattern)
+    plural_suffix = r"(?:e?s)?" if not pattern.endswith("s") else ""
+    regex = rf"\b{escaped}{plural_suffix}\b"
+    return bool(re.search(regex, text, flags=re.I))
+
+
 def _find_matching_clauses(
     query: str,
     policy: ProcessedPolicy,
@@ -137,7 +173,7 @@ def evaluate_claim_rehearsal(
     # 0. Policy Exclusion Check
     # -------------------------------------------------------------------------
     for pat, desc in EXCLUSION_PATTERNS.items():
-        if pat in treatment_raw:
+        if _match_treatment_keyword(pat, treatment_raw):
             has_exclusion = True
             excl_clauses = _find_matching_clauses(f"{pat} exclusion not covered", policy, top_k=2)
             relevant_conditions.append({
@@ -194,7 +230,7 @@ def evaluate_claim_rehearsal(
     detected_ailment = None
     sublimit_amount: float | None = None
     for pattern, name in SPECIFIC_AILMENT_PATTERNS.items():
-        if pattern in treatment_raw:
+        if _match_treatment_keyword(pattern, treatment_raw):
             detected_ailment = (pattern, name)
             break
 
@@ -544,10 +580,6 @@ def evaluate_claim_rehearsal(
         room_deduction = 0.0
         sublimit_deduction = 0.0
 
-        if copay_percentage > 0:
-            copay_amount = round(bill * (copay_percentage / 100.0), 2)
-            notes.append(f"{copay_percentage:g}% Co-payment applied for member entry age {req.member_age} (₹{copay_amount:,.0f}).")
-
         if sublimit_amount and bill > sublimit_amount:
             sublimit_deduction = round(bill - sublimit_amount, 2)
             notes.append(f"Capped at procedure sub-limit of ₹{sublimit_amount:,.0f} (₹{sublimit_deduction:,.0f} excess out-of-pocket).")
@@ -561,7 +593,17 @@ def evaluate_claim_rehearsal(
         consumables_estimate = round(bill * 0.04, 2)
         notes.append(f"Estimated non-medical consumables (gloves, sanitizer, admin fees) not payable by insurer (~₹{consumables_estimate:,.0f}).")
 
-        out_of_pocket = round(copay_amount + room_deduction + sublimit_deduction + consumables_estimate, 2)
+        # Admissible amount before co-payment under IRDAI standard guidelines:
+        # Co-payment applies strictly to the admissible portion after non-payable deductions
+        admissible_base = max(0.0, bill - sublimit_deduction - room_deduction)
+        if copay_percentage > 0:
+            copay_amount = round(admissible_base * (copay_percentage / 100.0), 2)
+            if sublimit_deduction > 0 or room_deduction > 0:
+                notes.append(f"{copay_percentage:g}% Co-payment applied for member entry age {req.member_age} on admissible sum of ₹{admissible_base:,.0f} (₹{copay_amount:,.0f}).")
+            else:
+                notes.append(f"{copay_percentage:g}% Co-payment applied for member entry age {req.member_age} (₹{copay_amount:,.0f}).")
+
+        out_of_pocket = min(bill, round(copay_amount + room_deduction + sublimit_deduction + consumables_estimate, 2))
         insurer_coverage = max(0.0, round(bill - out_of_pocket, 2))
 
         fin_breakdown = FinancialBreakdown(

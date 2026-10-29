@@ -182,3 +182,38 @@ def test_claim_rehearsal_history_with_nonexistent_policy_filter(auth_headers):
     )
     assert resp.status_code == 404
     assert "not found or access denied" in resp.json()["detail"].lower()
+
+
+def test_claim_rehearsal_sublimit_and_copay_admissibility(prepared_sample_policy):
+    """Ensure copay applies to admissible amount and out-of-pocket is clamped to total bill."""
+    req = ClaimRehearsalRequest(
+        policy_id=prepared_sample_policy.fingerprint,
+        treatment_description="Cataract Eye Surgery with Monofocal Lens",
+        estimated_expense=120000.0,
+        policy_duration_months=36,
+        member_age=65,  # triggers 10% copay
+        room_category="single_private",
+    )
+    res = evaluate_claim_rehearsal(prepared_sample_policy, req)
+    assert res.financial_breakdown is not None
+    fb = res.financial_breakdown
+    assert fb.estimated_out_of_pocket <= 120000.0
+    assert fb.estimated_insurer_coverage >= 0.0
+    # Insurer coverage + out of pocket must be coherent
+    assert fb.estimated_out_of_pocket + fb.estimated_insurer_coverage >= 120000.0
+
+
+def test_claim_rehearsal_no_false_positive_substring_match(prepared_sample_policy):
+    """Ensure non-clinical substrings do not trigger false positive specific waiting periods."""
+    req = ClaimRehearsalRequest(
+        policy_id=prepared_sample_policy.fingerprint,
+        treatment_description="Home delivery of prescription medications and medical records",
+        estimated_expense=5000.0,
+        policy_duration_months=36,
+        member_age=30,
+        room_category="single_private",
+    )
+    res = evaluate_claim_rehearsal(prepared_sample_policy, req)
+    # Should not trigger maternity delivery waiting period
+    assert not any("Maternity delivery" in c["title"] for c in res.relevant_conditions)
+

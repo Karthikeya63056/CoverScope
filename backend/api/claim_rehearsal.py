@@ -80,15 +80,16 @@ def get_rehearsal_history(
         clean_pid = policy_id.strip()
         policy = get_cached_policy(clean_pid, current_user.user_id)
         if not policy:
+            policy_found = False
             if db is not None:
-                from backend.database.repositories import PolicyRepository
-                p_repo = PolicyRepository(db)
-                if not p_repo.get_policy(current_user.user_id, clean_pid) and not p_repo.get_policy_by_hash(current_user.user_id, clean_pid):
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Policy not found or access denied.",
-                    )
-            else:
+                try:
+                    from backend.database.repositories import PolicyRepository
+                    p_repo = PolicyRepository(db)
+                    if p_repo.get_policy(current_user.user_id, clean_pid) or p_repo.get_policy_by_hash(current_user.user_id, clean_pid):
+                        policy_found = True
+                except Exception as exc:
+                    logger.warning("Error checking policy existence in database: %s", exc)
+            if not policy_found:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Policy not found or access denied.",

@@ -194,6 +194,12 @@ if _dist_dir.exists():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Centralized exception handler to prevent leaking internal stack traces."""
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=getattr(exc, "headers", None),
+        )
     logger.error("Unhandled API exception on %s: %s", request.url.path, exc, exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

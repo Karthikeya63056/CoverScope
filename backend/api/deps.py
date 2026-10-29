@@ -7,16 +7,20 @@ import os
 import secrets
 from typing import Annotated, Any
 
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Header, Request, status
 import jwt
 
 from backend.services.auth_service import AuthUser
 
+# Guarantee environment variables from .env are loaded even if this module is imported first
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 # Security configuration. A per-process random secret is used when the operator
 # has not configured one, so the application never ships with a known signing key.
-_configured_jwt_secret = os.getenv("COVERSCOPE_JWT_SECRET")
+_configured_jwt_secret = os.getenv("COVERSCOPE_JWT_SECRET") or os.getenv("JWT_SECRET")
 if not _configured_jwt_secret:
     logger.warning(
         "COVERSCOPE_JWT_SECRET is not set; using a random per-process secret. "
@@ -257,7 +261,7 @@ def decode_access_token(token: str) -> dict[str, Any]:
             detail="Session expired. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.PyJWTError:
+    except (jwt.PyJWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token.",
@@ -285,8 +289,15 @@ async def get_current_user(
         )
 
     payload = decode_access_token(token)
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token payload.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return AuthUser(
-        user_id=payload["sub"],
+        user_id=str(sub),
         email=payload.get("email", ""),
         display_name=payload.get("name", payload.get("email", "User")),
         role=payload.get("role", "policyholder"),

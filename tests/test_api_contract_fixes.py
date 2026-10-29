@@ -470,10 +470,12 @@ def test_gridfs_storage_and_zero_local_disk_exposure():
         f"Security violation: raw PDF file was written to local disk at {user_upload_dir}"
     )
 
-    # 3. Verify file exists in MongoDB GridFS
+    # 3. Verify file exists in MongoDB GridFS (when database is connected)
     from backend.database.client import get_database
+    from backend.database.healthcheck import check_mongodb_health
     db = get_database()
-    if db is not None:
+    is_live_db = db is not None and check_mongodb_health().is_connected
+    if is_live_db:
         repo = PolicyRepository(db)
         grid_data = repo.get_policy_file(user_uid, pol_id)
         assert grid_data is not None, "Policy was not stored in MongoDB GridFS"
@@ -504,7 +506,7 @@ def test_gridfs_storage_and_zero_local_disk_exposure():
     del_res = client.delete(f"/api/v1/policies/{pol_id}", headers=headers)
     assert del_res.status_code == 200
 
-    if db is not None:
+    if is_live_db:
         repo = PolicyRepository(db)
         assert repo.get_policy_file(user_uid, pol_id) is None
         assert repo.get_policy_file(user_uid, doc_hash) is None
@@ -534,8 +536,9 @@ def test_chat_history_and_analysis_audit_linkage_with_dual_ids():
     doc_hash = up_res.json()["document_hash"]
 
     from backend.database.client import get_database
+    from backend.database.healthcheck import check_mongodb_health
     db = get_database()
-    if db is not None:
+    if db is not None and check_mongodb_health().is_connected:
         c_repo = ConversationRepository(db)
         conv_id = c_repo.get_or_create_conversation(user_id=user_uid, policy_id=doc_hash, title="Test Chat")
         c_repo.append_message(user_id=user_uid, conversation_id=conv_id, policy_id=doc_hash, role="user", content="What is covered?")

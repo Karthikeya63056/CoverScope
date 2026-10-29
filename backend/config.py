@@ -89,10 +89,10 @@ class Settings:
     mongodb_uri: str | None = os.getenv("MONGODB_URI")
     mongodb_database: str = _non_empty("MONGODB_DATABASE", "coverscope")
     mongodb_server_selection_timeout_ms: int = _positive_int(
-        "COVERSCOPE_MONGODB_TIMEOUT_MS", 10000
+        "COVERSCOPE_MONGODB_TIMEOUT_MS", 2500
     )
     mongodb_connect_timeout_ms: int = _positive_int(
-        "COVERSCOPE_MONGODB_CONNECT_TIMEOUT_MS", 10000
+        "COVERSCOPE_MONGODB_CONNECT_TIMEOUT_MS", 2500
     )
 
 
