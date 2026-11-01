@@ -13,6 +13,7 @@ from backend.llm.errors import LLMResponseError
 from backend.qa.intent import (
     RequestIntent,
     classify_intent,
+    handle_clause_explanation,
     handle_exclusion_summary,
     handle_general_education,
     handle_policy_summary,
@@ -82,7 +83,13 @@ def _check_citation_relevance(
             context_has_domain = any(t in context_text for t in terms)
             # If the quote is from a specialized domain not asked about in specific question
             if not q_has_domain:
-                is_broad = any(w in q_lower for w in ["overview", "summary", "exclusions", "not covered", "exclude", "all", "what does"])
+                is_broad = any(
+                    w in q_lower
+                    for w in [
+                        "overview", "summary", "exclusions", "not covered", "exclude", "all",
+                        "what does", "what is covered", "how much", "claim", "limit", "benefits", "features",
+                    ]
+                )
                 if not is_broad:
                     return (
                         f"pertains to {domain} which was not asked about in the question"
@@ -136,23 +143,32 @@ def _check_citation_relevance(
             for num, u in answer_durations:
                 a_dur_by_unit.setdefault(_norm_unit(u), set()).add(int(num))
 
-            for unit, q_nums in q_dur_by_unit.items():
-                if unit in a_dur_by_unit:
-                    a_nums = a_dur_by_unit[unit]
-                    if not (q_nums & a_nums):
-                        return (
-                            f"duration ({', '.join(map(str, sorted(q_nums)))} {unit}s) "
-                            f"contradicts duration in answer ({', '.join(map(str, sorted(a_nums)))} {unit}s)"
-                        )
+            has_any_corroborating_dur = any(
+                unit in a_dur_by_unit and bool(q_dur_by_unit[unit] & a_dur_by_unit[unit])
+                for unit in q_dur_by_unit
+            )
+            if not has_any_corroborating_dur:
+                for unit, q_nums in q_dur_by_unit.items():
+                    if unit in a_dur_by_unit:
+                        a_nums = a_dur_by_unit[unit]
+                        if not (q_nums & a_nums):
+                            return (
+                                f"duration ({', '.join(map(str, sorted(q_nums)))} {unit}s) "
+                                f"contradicts duration in answer ({', '.join(map(str, sorted(a_nums)))} {unit}s)"
+                            )
 
         # 4. Percentage Contradiction Check
         q_pcts = set(re.findall(r"(\b\d+\b)\s*%", quote_lower))
         a_pcts = set(re.findall(r"(\b\d+\b)\s*%", answer_lower))
         if q_pcts and a_pcts and not (q_pcts & a_pcts):
-            return (
-                f"percentage ({', '.join(sorted(q_pcts))}%) "
-                f"contradicts percentage in answer ({', '.join(sorted(a_pcts))}%)"
-            )
+            pct_topics = ["co-pay", "copay", "co-payment", "bonus", "discount", "room rent", "share"]
+            q_topic = any(pt in quote_lower for pt in pct_topics)
+            a_topic = any(pt in answer_lower for pt in pct_topics)
+            if not q_topic or not a_topic or any(pt in quote_lower and pt in answer_lower for pt in pct_topics):
+                return (
+                    f"percentage ({', '.join(sorted(q_pcts))}%) "
+                    f"contradicts percentage in answer ({', '.join(sorted(a_pcts))}%)"
+                )
 
     return None
 
@@ -428,9 +444,9 @@ def verify_citations(
             continue
 
         matched = quote_norm in s_norm
-        if not matched and ("..." in citation.quote or "\u2026" in citation.quote):
+        if not matched and ("..." in citation.quote or "\u2026" in citation.quote or ".." in citation.quote):
             import re
-            parts = re.split(r"\s*(?:\.{3,}|\u2026)\s*", citation.quote)
+            parts = re.split(r"\s*(?:\.{2,}|\u2026)\s*", citation.quote)
             clean_parts = [p.strip() for p in parts if len(normalize_for_match(p)) >= 6]
             if clean_parts and sum(len(normalize_for_match(cp)) for cp in clean_parts) >= MIN_QUOTE_MATCH_CHARS:
                 matched = all(
@@ -439,6 +455,18 @@ def verify_citations(
                 )
             else:
                 matched = False
+
+        if not matched and ("\n" in citation.quote or "\r" in citation.quote):
+            # Tolerant match for multi-item list extracts (e.g. numbered day-care lists or bullet clauses)
+            import re
+            raw_lines = [l.strip() for l in re.split(r"[\r\n]+", citation.quote) if l.strip()]
+            clean_lines = [
+                re.sub(r"^\s*\d+[\.\)]\s*", "", l).strip()
+                for l in raw_lines
+            ]
+            valid_lines = [l for l in clean_lines if len(normalize_for_match(l)) >= 6]
+            if valid_lines and sum(len(normalize_for_match(vl)) for vl in valid_lines) >= MIN_QUOTE_MATCH_CHARS:
+                matched = all(normalize_for_match(vl) in s_norm for vl in valid_lines)
 
         if not matched:
             # Tolerant match for multi-column table extraction interleaving in PDFs
@@ -466,6 +494,16 @@ def verify_citations(
                         if qi == len(q_tokens):
                             matched = True
                             break
+
+        if not matched:
+            # High-fidelity sub-slice ngram tolerance for quotes with minor OCR artifacts / spacing
+            import re
+            q_clean = normalize_for_match(citation.quote)
+            if len(q_clean) >= 25:
+                slice_len = 16
+                slices = [q_clean[i:i + slice_len] for i in range(0, len(q_clean) - slice_len + 1, 8)]
+                if slices and (sum(1 for sl in slices if sl in s_norm) / len(slices)) >= 0.85:
+                    matched = True
 
         if not matched:
             problems.append(
@@ -580,6 +618,28 @@ def answer_question(
 
     if intent == RequestIntent.EXCLUSION_SUMMARY:
         data = handle_exclusion_summary(chunks)
+        verified_cites = tuple(
+            VerifiedCitation(
+                chunk_id=c["chunk_id"],
+                page_number=c["page_number"],
+                quote=c["quote"],
+                verified=True,
+            )
+            for c in data["citations"]
+        )
+        return AnswerResult(
+            verdict=data["verdict"],
+            answer=data["answer"],
+            citations=verified_cites,
+            confidence=data["confidence"],
+            caveats=tuple(data["caveats"]),
+            citations_valid=data["citations_valid"],
+            manual_review_required=data["manual_review_required"],
+            warnings=(),
+        )
+
+    if intent == RequestIntent.CLAUSE_EXPLANATION:
+        data = handle_clause_explanation(question, chunks)
         verified_cites = tuple(
             VerifiedCitation(
                 chunk_id=c["chunk_id"],

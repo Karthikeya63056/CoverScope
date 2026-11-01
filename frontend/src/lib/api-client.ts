@@ -44,6 +44,11 @@ export function setAuthSession(token: string, user: AuthUser): void {
 }
 
 export function clearAuthSession(): void {
+  const user = getStoredUser();
+  if (user?.user_id) {
+    localStorage.removeItem(`coverscope_chat_history_v2_${user.user_id}`);
+  }
+  localStorage.removeItem('coverscope_chat_history_v2');
   localStorage.removeItem('coverscope_token');
   localStorage.removeItem('coverscope_user');
 }
@@ -82,7 +87,7 @@ async function request<T>(
     });
   } catch (networkErr: any) {
     throw new ApiError(
-      'Unable to connect to CoverScope backend server. Please verify that "python -m backend.main" is actively running on port 8000.',
+      'Unable to connect to CoverScope backend server. The cloud service may be waking up from sleep; please try again in a few moments.',
       0
     );
   }
@@ -115,7 +120,7 @@ async function request<T>(
       }
     } catch {
       if (response.status === 502 || response.status === 503 || response.status === 504) {
-        errorDetail = 'Backend API is currently unreachable. Please make sure "python -m backend.main" is running on port 8000.';
+        errorDetail = 'Backend API service is currently unavailable or waking up. Please wait a moment and try again.';
       } else {
         errorDetail = `Server returned status ${response.status} (${response.statusText || 'Error'}).`;
       }

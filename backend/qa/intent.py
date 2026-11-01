@@ -93,31 +93,44 @@ def classify_intent(question: str) -> RequestIntent:
 
     # 3. Policy Exclusion Summary
     exclusion_patterns = [
-        r"\b(?:what\s+does\s+(?:my|this|the)\s+policy\s+exclude)\b",
-        r"\b(?:what\s+is\s+(?:not\s+covered|excluded)\s+(?:under|in)\s+(?:this|my|the)\s+policy)\b",
+        r"\b(?:what\s+does\s+(?:my|this|the)\s+(?:policy|plan)\s+exclude)\b",
+        r"\b(?:what\s+(?:does\s+)?(?:this|my|the)?\s*(?:policy|plan)?\s*(?:not\s+cover|excludes?))\b",
+        r"\b(?:what\s+is\s+(?:not\s+covered|excluded)\s+(?:under|in|from)\s+(?:this|my|the)?\s*(?:policy|plan)?)\b",
         r"\b(?:list\s+(?:all\s+)?exclusions|exclusions\s+summary|major\s+exclusions)\b",
-        r"\b(?:what\s+are\s+the\s+exclusions)\b",
+        r"\b(?:(?:show|give|tell)\s+(?:me\s+)?(?:the\s+)?exclusions)\b",
+        r"\b(?:what\s+are\s+the\s+(?:exclusions|limitations|restrictions))\b",
+        r"\b(?:is\s+anything\s+excluded)\b",
     ]
     if any(re.search(p, q_lower) for p in exclusion_patterns):
         return RequestIntent.EXCLUSION_SUMMARY
 
     # 4. Broad Policy Coverage Summary
     summary_patterns = [
-        r"\b(?:what\s+does\s+(?:my|this|the)\s+policy\s+cover)\b",
-        r"\b(?:what\s+is\s+covered\s+(?:under|in)\s+(?:this|my|the)\s+policy)\b",
-        r"\b(?:overview\s+of\s+(?:the\s+|this\s+|my\s+)?policy|policy\s+overview)\b",
-        r"\b(?:summarize\s+(?:my|this|the)\s+policy|policy\s+summary)\b",
-        r"\b(?:what\s+are\s+the\s+(?:main\s+)?benefits\s+(?:of|in|under)\s+(?:this|my|the)\s+policy)\b",
-        r"\b(?:key\s+features\s+of\s+(?:this|my|the)\s+policy)\b",
+        r"\b(?:what\s+does\s+(?:my|this|the)\s+(?:policy|plan)\s+cover)\b",
+        r"\b(?:what\s+is\s+covered\s+(?:under|in)\s+(?:this|my|the)\s+(?:policy|plan))\b",
+        r"\b(?:overview\s+of\s+(?:the\s+|this\s+|my\s+)?(?:policy|plan)|(?:policy|plan)\s+overview)\b",
+        r"\b(?:summarize\s+(?:my|this|the)\s+(?:policy|plan)|(?:policy|plan)\s+summary)\b",
+        r"\b(?:what\s+are\s+the\s+(?:main\s+)?benefits\s+(?:of|in|under)\s+(?:this|my|the)\s+(?:policy|plan))\b",
+        r"\b(?:key\s+features\s+of\s+(?:this|my|the)\s+(?:policy|plan))\b",
+        r"\b(?:(?:explain|tell)\s+(?:me\s+)?(?:about\s+)?(?:this|the|my)?\s*(?:policy|plan))\b",
+        r"\b(?:details?\s+of\s+(?:this|the|my)?\s*(?:policy|plan))\b",
+        r"\b(?:(?:give\s+me\s+a\s+)?breakdown\s+of\s+(?:the|this|my)?\s*(?:policy|plan))\b",
+        r"\b(?:walk\s+me\s+through\s+(?:the|this|my)?\s*(?:insurance\s+)?(?:policy|plan))\b",
+        r"\b(?:terms\s+and\s+conditions\s+of\s+(?:this|the|my)?\s*(?:policy|plan))\b",
+        r"\b(?:briefly\s+describe\s+(?:this|the|my)?\s*(?:policy|plan))\b",
     ]
     if any(re.search(p, q_lower) for p in summary_patterns):
         return RequestIntent.POLICY_SUMMARY
 
     # 5. Clause Explanation
     explanation_patterns = [
-        r"\b(?:explain\s+(?:the\s+)?(?:waiting\s+period|deductible|co-?payment|sublimit|cash\s+benefit))\b",
-        r"\b(?:how\s+does\s+(?:the\s+)?(?:waiting\s+period|co-?payment|deductible|restoration)\s+work)\b",
-        r"\b(?:what\s+is\s+the\s+meaning\s+of\s+(?:pre-existing|ped|co-?payment|deductible))\b",
+        r"\b(?:explain\s+(?:the\s+)?(?:pre[- ]*existing(?:\s+disease)?|ped|waiting\s+period|deductible|co[- ]?pay(?:ment)?|copay|sublimit|cash\s+benefit|no\s+claim\s+bonus|cumulative\s+bonus|restoration|grace\s+period|room\s+rent(?:\s+capping)?|network\s+hospital|domiciliary|tpa|cashless))\b",
+        r"\b(?:how\s+does\s+(?:the\s+)?(?:waiting\s+period|co[- ]?pay(?:ment)?|copay|deductible|restoration|no\s+claim\s+bonus|cumulative\s+bonus|grace\s+period|tpa|cashless)\s+work)\b",
+        r"\b(?:what\s+is\s+(?:the\s+)?(?:meaning\s+of\s+)?(?:pre[- ]*existing(?:\s+disease)?|ped|co[- ]?pay(?:ment)?|copay|deductible|cumulative\s+bonus|no\s+claim\s+bonus|restoration\s+benefit|grace\s+period|network\s+hospital|tpa|cashless(?:\s+hospitalization)?|domiciliary(?:\s+hospitalization)?|room\s+rent\s+capping|ayush(?:\s+treatment)?))\b",
+        r"\b(?:what\s+is\s+(?:a\s+)?(?:co[- ]?pay(?:ment)?|copay|deductible|no\s+claim\s+bonus|cumulative\s+bonus|network\s+hospital|tpa|grace\s+period))\b",
+        r"\b(?:what\s+does\s+(?:tpa|ped|ncb|ayush)\s+(?:mean|stand\s+for))\b",
+        r"\b(?:explain\s+(?:the\s+)?\d+\s*(?:days?|months?|years?)\s*(?:initial\s*)?waiting\s+period)\b",
+        r"\b(?:what\s+is\s+the\s+difference\s+between\s+(?:cashless\s+and\s+reimbursement|deductible\s+and\s+co[- ]?pay))\b",
     ]
     if any(re.search(p, q_lower) for p in explanation_patterns):
         return RequestIntent.CLAUSE_EXPLANATION
@@ -456,6 +469,179 @@ def handle_exclusion_summary(chunks: Sequence[PolicyChunk]) -> dict:
         "caveats": caveats,
         "citations_valid": citations_valid,
         "manual_review_required": manual_review,
+        "warnings": [],
+    }
+
+
+CLAUSE_DEFINITIONS = {
+    "ped": {
+        "title": "Pre-Existing Disease (PED) Waiting Period",
+        "explanation": (
+            "A Pre-Existing Disease (PED) is any medical condition, ailment, or injury that was diagnosed "
+            "by a physician or for which medical advice or treatment was received within 36 to 48 months prior "
+            "to purchasing the policy. Claims directly related to a declared PED are excluded during the waiting "
+            "period and become fully payable once the waiting clock has elapsed."
+        ),
+        "query": "pre-existing disease waiting period PED waiver 24 months 36 months 48 months",
+        "keywords": ["pre-existing", "ped", "waiting period", "waived"],
+    },
+    "waiting_period": {
+        "title": "Policy Waiting Periods",
+        "explanation": (
+            "Under standard health insurance regulations, policies incorporate three waiting period tiers:\n"
+            "1. **Initial Waiting Period (usually 30 days)**: No claims are payable for illnesses diagnosed within the first 30 days (accidental trauma is covered from Day 1).\n"
+            "2. **Specific Ailment Waiting Period (usually 24 months)**: Applies to treatments such as cataract, hernia, piles, benign prostatic hypertrophy, and joint replacements.\n"
+            "3. **Pre-Existing Disease Waiting Period (usually 36 to 48 months)**: Governs conditions declared prior to inception."
+        ),
+        "query": "waiting period initial 30 days pre-existing specific diseases 24 months 36 months",
+        "keywords": ["waiting period", "30 days", "24 months", "pre-existing"],
+    },
+    "copay": {
+        "title": "Co-Payment (Cost-Sharing)",
+        "explanation": (
+            "A co-payment is a cost-sharing requirement where the insured person pays a fixed percentage "
+            "(typically 10%–20%) of each admissible claim, and the insurer pays the remaining percentage. "
+            "Unlike deductibles, co-payments apply to every claim and do not reduce the base Sum Insured."
+        ),
+        "query": "co-payment copay percentage non-network senior citizen zone",
+        "keywords": ["co-payment", "copay", "percentage", "claim"],
+    },
+    "deductible": {
+        "title": "Deductible / Excess Clause",
+        "explanation": (
+            "A deductible (or excess) is a fixed rupee amount or duration (e.g. 1-day hospital cash deductible) "
+            "that the insured must pay out-of-pocket before insurance benefits start paying. For example, under a "
+            "₹25,000 deductible, if an approved claim is ₹1,00,000, the insured pays ₹25,000 and the insurer pays ₹75,000."
+        ),
+        "query": "deductible excess schedule hospitalization cash claim",
+        "keywords": ["deductible", "excess", "schedule", "claim"],
+    },
+    "cumulative_bonus": {
+        "title": "Cumulative Bonus / No Claim Bonus (NCB)",
+        "explanation": (
+            "Cumulative bonus rewards claim-free policy years by increasing the base Sum Insured by a specified "
+            "percentage (e.g. 5% to 50% per year, up to a maximum cap like 25%–100%) without increasing your premium. "
+            "If a claim is subsequently made, the accumulated bonus is reduced or reset per renewal rules."
+        ),
+        "query": "cumulative bonus renewal no claim bonus sum insured percentage increase",
+        "keywords": ["cumulative bonus", "no claim bonus", "sum insured", "renewed"],
+    },
+    "restoration": {
+        "title": "Restoration / Recharge Benefit",
+        "explanation": (
+            "Restoration reinstates or recharges 100% of the base Sum Insured once it is exhausted (partially or fully) "
+            "due to claims within the policy year. Most policies allow restoration for subsequent, unrelated illnesses, "
+            "ensuring family members or policyholders remain covered for remaining months."
+        ),
+        "query": "restoration recharge automatic reinstate sum insured exhaustion",
+        "keywords": ["restoration", "recharge", "reinstate", "exhaustion"],
+    },
+    "cashless": {
+        "title": "Cashless Hospitalization vs Reimbursement",
+        "explanation": (
+            "• **Cashless Facility**: Treatment received at a network hospital where medical bills are settled directly "
+            "between the hospital TPA desk and the insurer following pre-authorization approval.\n"
+            "• **Reimbursement**: Treatment received at any recognized hospital (network or non-network) where the "
+            "patient pays the bills directly and subsequently files a claim with original discharge summaries and invoices."
+        ),
+        "query": "cashless reimbursement network hospital intimation tpa pre-authorization",
+        "keywords": ["cashless", "reimbursement", "network", "intimation"],
+    },
+    "grace_period": {
+        "title": "Grace Period for Policy Renewal",
+        "explanation": (
+            "A grace period (typically 30 days from the renewal due date) allows the insured to renew the policy "
+            "without losing continuity benefits (such as accrued waiting periods and cumulative bonus). However, "
+            "hospitalization occurring during the break period is not covered."
+        ),
+        "query": "grace period renewal continuity break days defined",
+        "keywords": ["grace period", "renewal", "continuity", "break"],
+    },
+    "room_rent": {
+        "title": "Room Rent Capping & Proportionate Deductions",
+        "explanation": (
+            "Room rent capping limits the daily room charge covered by the insurer (e.g. 1% of Sum Insured or Single Private A/C). "
+            "If you choose a room above your eligible limit, the insurer applies a proportionate deduction on doctor fees, "
+            "surgical charges, and nursing costs in addition to the room tariff difference."
+        ),
+        "query": "room rent boarding nursing icu capping proportionate deduction",
+        "keywords": ["room rent", "icu", "capping", "proportionate"],
+    },
+    "tpa": {
+        "title": "Third Party Administrator (TPA)",
+        "explanation": (
+            "A Third Party Administrator (TPA) is an IRDAI-licensed intermediary appointed by the insurance company "
+            "to process health insurance claims, facilitate hospital cashless authorizations, issue health identity cards, "
+            "and manage customer care helpline operations."
+        ),
+        "query": "third party administrator tpa cashless claims intimation hospital",
+        "keywords": ["third party administrator", "tpa", "administrator", "claim"],
+    },
+}
+
+
+def handle_clause_explanation(question: str, chunks: Sequence[PolicyChunk]) -> dict:
+    """Provide a conceptual explanation grounded in specific extracted policy clauses."""
+    q_lower = question.lower()
+    best_key = "waiting_period"
+    if any(k in q_lower for k in ["pre-existing", "ped"]):
+        best_key = "ped"
+    elif any(k in q_lower for k in ["co-pay", "copay", "co-payment"]):
+        best_key = "copay"
+    elif "deductible" in q_lower:
+        best_key = "deductible"
+    elif any(k in q_lower for k in ["cumulative bonus", "no claim bonus", "ncb"]):
+        best_key = "cumulative_bonus"
+    elif any(k in q_lower for k in ["restoration", "recharge"]):
+        best_key = "restoration"
+    elif any(k in q_lower for k in ["cashless", "reimbursement"]):
+        best_key = "cashless"
+    elif "grace period" in q_lower:
+        best_key = "grace_period"
+    elif any(k in q_lower for k in ["room rent", "icu"]):
+        best_key = "room_rent"
+    elif any(k in q_lower for k in ["tpa", "administrator"]):
+        best_key = "tpa"
+
+    concept = CLAUSE_DEFINITIONS[best_key]
+    retrieved = retrieve_chunks(concept["query"], chunks, top_k=2)
+    citations: list[dict] = []
+    policy_clauses: list[str] = []
+
+    for item in retrieved:
+        quote = _extract_best_sentence(item.text, concept["keywords"])
+        if quote and quote not in [c["quote"] for c in citations]:
+            citations.append({
+                "chunk_id": item.chunk_id,
+                "page_number": item.page_number,
+                "quote": quote,
+            })
+            policy_clauses.append(f"* \"{quote}\" — *Page {item.page_number} ({item.chunk_id})*")
+
+    answer_parts = [
+        f"### {concept['title']}\n\n{concept['explanation']}"
+    ]
+    if policy_clauses:
+        answer_parts.append(
+            f"### Provisions Located in Your Policy\n\n" + "\n".join(policy_clauses)
+        )
+    else:
+        answer_parts.append(
+            "### Provisions in Uploaded Document\n\n"
+            "*No specific clause mentioning these terms was located in the extracted policy text.*"
+        )
+
+    return {
+        "verdict": "not_stated",
+        "answer": "\n\n".join(answer_parts),
+        "citations": citations,
+        "confidence": "high",
+        "caveats": [
+            f"Concept Explanation: Grounded in standard insurance principles and policy wordings.",
+            "Verify your specific policy schedule for customized limits or optional waiver endorsements.",
+        ],
+        "citations_valid": True,
+        "manual_review_required": False,
         "warnings": [],
     }
 

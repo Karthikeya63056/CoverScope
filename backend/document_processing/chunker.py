@@ -41,9 +41,21 @@ def chunk_pages(
                 if len(text) - end <= orphan_threshold:
                     end = len(text)
                 else:
-                    boundary = text.rfind(" ", start + int(chunk_chars * 0.75), end)
-                    if boundary > start:
-                        end = boundary
+                    window_start = start + int(chunk_chars * 0.75)
+                    # Prefer sentence or paragraph boundaries within window
+                    sentence_boundary = -1
+                    for delim in ("\n\n", ".\n", ".\r\n", ";\n", ". ", "; "):
+                        pos = text.rfind(delim, window_start, end)
+                        if pos != -1:
+                            cut_pos = pos + 1 if delim in (". ", "; ") else pos + len(delim)
+                            if cut_pos > sentence_boundary:
+                                sentence_boundary = cut_pos
+                    if sentence_boundary > start:
+                        end = sentence_boundary
+                    else:
+                        boundary = text.rfind(" ", window_start, end)
+                        if boundary > start:
+                            end = boundary
             piece = text[start:end].strip()
             if piece:
                 pieces.append(piece)

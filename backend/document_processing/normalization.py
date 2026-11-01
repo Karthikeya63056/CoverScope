@@ -12,7 +12,9 @@ import unicodedata
 # remove hyphens when checking a quotation.
 _LINE_BREAK_HYPHEN = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
 _WHITESPACE = re.compile(r"\s+")
-_MATCH_IGNORED = re.compile(r"[\s\-\u00ad\'\"\u2018\u2019\u201c\u201d\`\ufffd\u2022\u25cf\u25aa\.]+")
+_MATCH_IGNORED = re.compile(
+    r"[\s\-\u00ad\'\"\u2018\u2019\u201c\u201d\`\ufffd\u2022\u25cf\u25aa\.,:;!?\(\)\[\]\{\}\/\\_~*#]+"
+)
 # Models frequently emit typographic hyphens/dashes where the PDF has "-".
 _DASH_TRANSLATION = str.maketrans(
     {
@@ -66,6 +68,8 @@ def search_text(text: str) -> str:
     reason; this is a fixed, explainable list, not a learned synonym model.
     """
     normalized = normalize_text(text).casefold()
+    # Collapse commas between digits in numbers and currency (e.g. "5,00,000" -> "500000")
+    normalized = re.sub(r"(?<=\d),(?=\d)", "", normalized)
     normalized = normalized.replace("outpatient", "out patient")
     normalized = normalized.replace("inpatient", "in patient")
     normalized = normalized.replace("copayment", "co payment")

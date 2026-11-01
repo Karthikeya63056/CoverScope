@@ -137,13 +137,17 @@ async def upload_policy(
 
     return PolicySummary(
         id=policy_id,
+        policy_id=policy_id,
         document_name=policy.filename,
+        filename=policy.filename,
         document_hash=policy.fingerprint,
         page_count=policy.page_count,
         processing_status="processed",
         metadata={
             "char_count": policy.extracted_characters,
             "chunk_count": len(policy.chunks),
+            "file_size": len(content),
+            "gridfs_file_id": gridfs_id,
         },
     )
 
@@ -332,21 +336,27 @@ def download_policy(
         if offline_res:
             pdf_bytes, filename = offline_res
 
-    # Check baseline demo policy
+    # Check bundled demo/sample policies
     if pdf_bytes is None:
         from pathlib import Path
         from backend.qa.workflow import fingerprint
-        baseline_filename = "Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf"
-        baseline_file = Path("pdfs") / baseline_filename
-        if baseline_file.exists():
-            try:
-                b = baseline_file.read_bytes()
-                fp = fingerprint(b, baseline_file.name)
-                if fp == policy_id or policy_id in (baseline_filename, "demo", "star"):
-                    pdf_bytes = b
-                    filename = baseline_file.name
-            except Exception:
-                pass
+        pdf_dir = Path("pdfs")
+        if pdf_dir.is_dir():
+            for pdf_path in pdf_dir.glob("*.pdf"):
+                try:
+                    b = pdf_path.read_bytes()
+                    fp = fingerprint(b, pdf_path.name)
+                    if (
+                        fp == policy_id
+                        or policy_id == pdf_path.name
+                        or policy_id == pdf_path.stem
+                        or (policy_id in ("demo", "star") and "Star" in pdf_path.name)
+                    ):
+                        pdf_bytes = b
+                        filename = pdf_path.name
+                        break
+                except Exception:
+                    continue
 
     if pdf_bytes is None:
         raise HTTPException(

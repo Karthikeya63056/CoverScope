@@ -24,7 +24,7 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 STOP_WORDS = frozenset(
     """
     a an and are as at be been being but by can could did do does for from had
-    has have he her here him his how i if in into is it its me my no nor not of
+    has have he her here him his how i if in into is it its me my of
     on or our ours out over she should so some such than that the their theirs
     them then there these they this those through to under until up was we were
     what when where which while who whom why will with would you your yours
@@ -65,6 +65,33 @@ INSURANCE_CONCEPT_EXPANSIONS = {
     # Bariatric & Cosmetic
     "weight loss": ["bariatric", "surgery", "obesity", "cosmetic", "exclusion"],
     "bariatric": ["bariatric", "surgery", "hospitalization", "waiting", "period", "36", "months"],
+
+    # Financial Limits, Claims & Sum Insured
+    "how much": ["sum", "insured", "maximum", "liability", "limit", "schedule"],
+    "how much can i claim": ["sum", "insured", "maximum", "liability", "limit", "schedule"],
+    "claim amount": ["sum", "insured", "maximum", "liability", "limit", "schedule"],
+    "maximum claim": ["sum", "insured", "maximum", "liability", "limit", "schedule"],
+    "hospital cash": ["daily", "cash", "hospital", "allowance", "benefit"],
+
+    # Negative Coverage Formulation & Exclusions
+    "not covered": ["exclusion", "exclusions", "excluded", "permanent", "not", "covered"],
+    "not payable": ["exclusion", "exclusions", "excluded", "permanent", "not", "payable"],
+    "not included": ["exclusion", "exclusions", "excluded", "permanent"],
+    "not admitted": ["exclusion", "exclusions", "excluded", "repudiated"],
+    "excluded": ["exclusion", "exclusions", "excluded", "permanent"],
+
+    # Common Layperson Treatments, Exclusions & Benefits
+    "maternity": ["pregnancy", "childbirth", "miscarriage", "abortion", "delivery", "obstetric"],
+    "pregnancy": ["pregnancy", "childbirth", "miscarriage", "abortion", "delivery"],
+    "ayurveda": ["ayurvedic", "homeopathy", "unani", "ayush", "system", "medicine"],
+    "ayurvedic": ["ayurvedic", "homeopathy", "unani", "ayush", "system", "medicine"],
+    "ayush": ["ayurvedic", "homeopathy", "unani", "ayush", "system", "medicine"],
+    "alternative medicine": ["ayurvedic", "homeopathy", "unani", "ayush", "system", "medicine"],
+    "organ donor": ["donor", "donee", "harvesting", "organ", "transplant"],
+    "organ transplant": ["donor", "donee", "harvesting", "organ", "transplant"],
+    "critical illness": ["cancer", "stroke", "paralysis", "renal", "kidney", "failure", "bypass"],
+    "ambulance": ["ambulance", "road", "transport", "emergency"],
+    "dental": ["dental", "oral", "teeth", "tooth", "denture"],
 }
 
 
@@ -83,6 +110,8 @@ def _normalise_term(term: str) -> str:
     """Very small plural normalizer; deliberately not a stemmer."""
     if len(term) > 4 and term.endswith("ies"):
         return term[:-3] + "y"
+    if len(term) > 4 and term.endswith(("sses", "shes", "ches", "xes", "zes")):
+        return term[:-2]
     if (
         len(term) > 3
         and term.endswith("s")
@@ -107,7 +136,7 @@ def extract_query_terms(question: str) -> list[str]:
         return []
     terms: list[str] = []
     for token in _tokens(question):
-        if len(token) < 2 or token in STOP_WORDS:
+        if (len(token) < 2 and not token.isdigit()) or token in STOP_WORDS:
             continue
         if token not in terms:
             terms.append(token)
@@ -176,6 +205,10 @@ def retrieve_chunks(
     phrase_pairs = list(zip(raw_query_terms, raw_query_terms[1:]))
     ranked: list[RetrievedChunk] = []
 
+    # Specific generic document/query stopwords that dominate frequency without discriminating topical clauses
+    GENERIC_QUERY_WORDS = frozenset({"policy", "policies", "cover", "covers", "covered", "coverage", "anything", "related", "insurance"})
+    substantive_raw = [t for t in raw_query_terms if t not in GENERIC_QUERY_WORDS]
+
     for chunk, text, counts in prepared:
         matched_raw = [term for term in raw_query_terms if counts.get(term, 0) > 0]
         matched_exp = [term for term in expansion_terms if counts.get(term, 0) > 0]
@@ -185,10 +218,14 @@ def retrieve_chunks(
 
         score = 0.0
 
-        # 1. Primary Lexical Scoring (Full Weight = 1.0)
+        # 1. Primary Lexical Scoring (Full Weight = 1.0, discounted for non-discriminating generic query words)
         for term in matched_raw:
-            score += 1.0 * idf[term] * (1.0 + math.log(counts[term]))
-        if raw_query_terms:
+            weight = 0.35 if term in GENERIC_QUERY_WORDS and substantive_raw else 1.0
+            score += weight * idf[term] * (1.0 + math.log(counts[term]))
+        if substantive_raw:
+            matched_sub = [t for t in substantive_raw if counts.get(t, 0) > 0]
+            score += 2.0 * (len(matched_sub) / len(substantive_raw))
+        elif raw_query_terms:
             score += 0.5 * (len(matched_raw) / len(raw_query_terms))
 
         # 2. Adjacent Phrase Proximity Bonus (Full Weight = 0.75)

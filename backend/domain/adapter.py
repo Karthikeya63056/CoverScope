@@ -82,6 +82,15 @@ _MONETARY_SUBLIMIT_RE = re.compile(
     re.IGNORECASE,
 )
 
+_REVERSE_MONETARY_SUBLIMIT_RE = re.compile(
+    r"(?:limit|sub[- ]?limit|up\s+to|capped\s+at|maximum\s+of)?\s*"
+    r"(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)\s*"
+    r"(per\s+eye|per\s+day|per\s+hospitalization|per\s+year|per\s+delivery|annual)?\s*"
+    r"[^.\n]{0,60}?(?:for|towards|in\s+respect\s+of|applicable\s+to)\s+"
+    r"(cataract(?:\s+surgery)?|room\s+rent|maternity|ayush(?:\s+treatment)?|road\s+ambulance|organ\s+donor)",
+    re.IGNORECASE,
+)
+
 _EXCLUSION_ITEMS_PATTERN = (
     r"(alcoholism|drug\s+addiction|substance\s+abuse|cosmetic\s+surgery|"
     r"hazardous\s+sports|weight\s+loss\s+surgery|obesity(?:\s*[/&]|\s+and)?\s*weight\s+control(?: surgery)?|"
@@ -724,6 +733,62 @@ def extract_candidate_facts(policy: ProcessedPolicy) -> list[PolicyFact]:
             review_reasons: list[str] = []
 
             # Check if this is part of a complex tiered table with multiple currency numbers
+            currency_counts = len(re.findall(r"(?:Rs\.?|INR|₹)\s*[\d,]+", surrounding))
+            if currency_counts > 2 or is_table_page:
+                status = FactValidationStatus.NEEDS_REVIEW
+                review_reasons.append("Tiered or table-derived monetary limit requires policy schedule review")
+
+            is_grounded = normalize_for_match(span_text) in norm_page_text
+            ev = EvidenceReference(
+                evidence_id=f"ev_{doc_id[:8]}_p{page.page_number}_f{fact_idx}",
+                document_id=doc_id,
+                page_number=page.page_number,
+                exact_text=span_text,
+                validation_status=status,
+            )
+
+            facts.append(
+                PolicyFact(
+                    fact_id=f"fact_{doc_id[:8]}_{fact_idx:03d}",
+                    document_id=doc_id,
+                    category=FactCategory.LIMIT_OR_SUBLIMIT,
+                    proposition=f"Monetary sublimit for {item} of Rs {amt:,.0f} ({scope_raw.strip()}) on page {page.page_number}.",
+                    evidence_references=(ev,),
+                    structured_value=MonetaryLimit(
+                        amount=amt,
+                        currency="INR",
+                        scope=scope_raw.strip(),
+                        raw_text=span_text,
+                    ),
+                    extraction_method=ExtractionMethod.HEURISTIC,
+                    validation_status=status,
+                    is_evidence_grounded=is_grounded,
+                    semantic_status="unreviewed" if status != FactValidationStatus.NEEDS_REVIEW else "ambiguous",
+                    review_reasons=tuple(review_reasons),
+                )
+            )
+            fact_idx += 1
+
+        # ---------------------------------------------------------------------
+        # 7b. Reverse Monetary Sublimits (Amount precedes procedure)
+        # ---------------------------------------------------------------------
+        for match in _REVERSE_MONETARY_SUBLIMIT_RE.finditer(text):
+            span_text = match.group(0).strip()
+            raw_amt = match.group(1).replace(",", "")
+            scope_raw = match.group(2) or "lump_sum"
+            item = match.group(3)
+            try:
+                amt = float(raw_amt)
+            except ValueError:
+                continue
+
+            start_ctx = max(0, match.start() - 100)
+            end_ctx = min(len(text), match.end() + 100)
+            surrounding = text[start_ctx:end_ctx]
+
+            status = FactValidationStatus.EVIDENCE_GROUNDED
+            review_reasons: list[str] = []
+
             currency_counts = len(re.findall(r"(?:Rs\.?|INR|₹)\s*[\d,]+", surrounding))
             if currency_counts > 2 or is_table_page:
                 status = FactValidationStatus.NEEDS_REVIEW

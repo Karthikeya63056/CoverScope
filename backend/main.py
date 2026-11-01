@@ -52,25 +52,29 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Running in offline in-memory session mode (MONGODB_URI not set).")
 
-    # Pre-cache single baseline demonstration policy from pdfs/ directory
+    # Pre-cache baseline demonstration policies from pdfs/ directory
     pdf_dir = ROOT / "pdfs"
-    baseline_filename = "Brochure_Star_Comprehensive_Insurance_Policy_V_15_Web_633bcfcaaf.pdf"
-    baseline_path = pdf_dir / baseline_filename
-    if baseline_path.exists():
-        try:
-            data = baseline_path.read_bytes()
-            policy = prepare_policy(
-                data,
-                baseline_filename,
-                max_upload_bytes=settings.max_upload_bytes,
-                max_extracted_chars=settings.max_extracted_chars,
-                min_page_chars=settings.min_page_chars,
-                chunk_chars=settings.chunk_chars,
-            )
-            cache_processed_policy(policy)
-            logger.info("Loaded baseline policy: '%s' (%d pages, hash: %s)", policy.filename, policy.page_count, policy.fingerprint[:12])
-        except Exception as exc:
-            logger.warning("Could not pre-cache '%s': %s", baseline_filename, exc)
+    if pdf_dir.exists():
+        for pdf_path in sorted(pdf_dir.glob("*.pdf")):
+            try:
+                data = pdf_path.read_bytes()
+                policy = prepare_policy(
+                    data,
+                    pdf_path.name,
+                    max_upload_bytes=settings.max_upload_bytes,
+                    max_extracted_chars=settings.max_extracted_chars,
+                    min_page_chars=settings.min_page_chars,
+                    chunk_chars=settings.chunk_chars,
+                )
+                cache_processed_policy(policy, alias=pdf_path.name)
+                logger.info(
+                    "Loaded bundled policy: '%s' (%d pages, hash: %s)",
+                    policy.filename,
+                    policy.page_count,
+                    policy.fingerprint[:12],
+                )
+            except Exception as exc:
+                logger.warning("Could not pre-cache '%s': %s", pdf_path.name, exc)
 
     # Reconcile existing MongoDB policy IDs with in-memory bundled policies
     if db is not None:
@@ -131,7 +135,6 @@ ALLOWED_ORIGINS = get_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],

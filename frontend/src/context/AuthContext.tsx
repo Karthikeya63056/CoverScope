@@ -29,10 +29,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const currentUser = await api.me();
         setUser(currentUser);
-      } catch (err) {
-        console.warn('Session verification failed, signing out:', err);
-        clearAuthSession();
-        setUser(null);
+      } catch (err: any) {
+        if (err?.status === 401) {
+          console.warn('Session expired or invalid, signing out:', err);
+          clearAuthSession();
+          setUser(null);
+        } else {
+          console.warn('Backend unavailable during session check, retaining local session state:', err);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -55,6 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.logout();
     } finally {
+      clearAuthSession();
       setUser(null);
     }
   };

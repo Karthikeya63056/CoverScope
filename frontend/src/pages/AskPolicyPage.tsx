@@ -30,7 +30,7 @@ import {
   ArrowDown,
   Paperclip,
 } from 'lucide-react';
-import { api } from '../lib/api-client';
+import { api, getStoredUser } from '../lib/api-client';
 import type { PolicySummary, AnswerResponse, ConversationSummaryItem } from '../lib/types';
 
 interface QAMessage {
@@ -50,11 +50,14 @@ interface LocalConversation {
   messages: QAMessage[];
 }
 
-const STORAGE_KEY = 'coverscope_chat_history_v2';
+function getUserStorageKey(): string {
+  const user = getStoredUser();
+  return user?.user_id ? `coverscope_chat_history_v2_${user.user_id}` : 'coverscope_chat_history_v2_guest';
+}
 
 function getStoredConversations(): LocalConversation[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getUserStorageKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -63,7 +66,7 @@ function getStoredConversations(): LocalConversation[] {
 
 function saveStoredConversations(threads: LocalConversation[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(threads.slice(0, 100)));
+    localStorage.setItem(getUserStorageKey(), JSON.stringify(threads.slice(0, 100)));
   } catch {}
 }
 
@@ -113,19 +116,32 @@ const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
 
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
-  let currentList: string[] = [];
+  let currentList: { text: string; ordered: boolean }[] = [];
 
   const flushList = (keyPrefix: number) => {
     if (currentList.length > 0) {
-      elements.push(
-        <ul key={`ul-${keyPrefix}`} className="space-y-1.5 my-2 pl-4 list-disc marker:text-emerald-500">
-          {currentList.map((item, idx) => (
-            <li key={idx} className="leading-relaxed">
-              {renderInlineStyles(item)}
-            </li>
-          ))}
-        </ul>
-      );
+      const isOrdered = currentList[0].ordered;
+      if (isOrdered) {
+        elements.push(
+          <ol key={`ol-${keyPrefix}`} className="space-y-1.5 my-2 pl-5 list-decimal marker:text-emerald-600 font-medium text-slate-800">
+            {currentList.map((item, idx) => (
+              <li key={idx} className="leading-relaxed font-normal">
+                {renderInlineStyles(item.text)}
+              </li>
+            ))}
+          </ol>
+        );
+      } else {
+        elements.push(
+          <ul key={`ul-${keyPrefix}`} className="space-y-1.5 my-2 pl-4 list-disc marker:text-emerald-500">
+            {currentList.map((item, idx) => (
+              <li key={idx} className="leading-relaxed">
+                {renderInlineStyles(item.text)}
+              </li>
+            ))}
+          </ul>
+        );
+      }
       currentList = [];
     }
   };
@@ -158,9 +174,22 @@ const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
 
-    // Check for list items
+    // Check for ordered list items (e.g. "1. ", "2) ")
+    const numMatch = trimmed.match(/^(\d+)[\.\)]\s+(.+)$/);
+    if (numMatch) {
+      if (currentList.length > 0 && !currentList[0].ordered) {
+        flushList(idx);
+      }
+      currentList.push({ text: numMatch[2], ordered: true });
+      return;
+    }
+
+    // Check for unordered list items
     if (trimmed.startsWith('• ') || trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
-      currentList.push(trimmed.slice(2));
+      if (currentList.length > 0 && currentList[0].ordered) {
+        flushList(idx);
+      }
+      currentList.push({ text: trimmed.slice(2), ordered: false });
       return;
     }
 
@@ -233,6 +262,7 @@ export const AskPolicyPage: React.FC = () => {
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSubmittingRef = useRef<boolean>(false);
 
   // Suggested conversational starter prompts
   const samplePrompts = [
@@ -384,9 +414,14 @@ export const AskPolicyPage: React.FC = () => {
     }
   };
 
+  const currentUserId = getStoredUser()?.user_id;
+
   useEffect(() => {
+    setConversations(getStoredConversations());
+    setActiveConversationId(null);
+    setMessages([]);
     refreshConversations();
-  }, []);
+  }, [currentUserId]);
 
   // Switch to a conversation thread
   const handleSelectConversation = async (conv: LocalConversation) => {
@@ -513,6 +548,7 @@ export const AskPolicyPage: React.FC = () => {
   };
 
   const handleAsk = async (queryText?: string) => {
+    if (isSubmittingRef.current) return;
     const q = (queryText || question).trim();
     if (!q) return;
 
@@ -521,6 +557,7 @@ export const AskPolicyPage: React.FC = () => {
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsAsking(true);
     setErrorMsg(null);
     setQuestion('');
@@ -581,7 +618,9 @@ export const AskPolicyPage: React.FC = () => {
       refreshConversations();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to retrieve answer from policy.');
+      setQuestion(q); // Preserve input so user does not lose their query
     } finally {
+      isSubmittingRef.current = false;
       setIsAsking(false);
       setTimeout(() => {
         textareaRef.current?.focus({ preventScroll: true });
