@@ -49,14 +49,30 @@ def normalize_for_match(text: str) -> str:
     """Casefold and remove whitespace/hyphens for tolerant quote matching.
 
     Two renderings of the same clause must compare equal even when one has a
-    line-break hyphen, a soft hyphen, smart quotes, or different spacing/currency.
+    line-break hyphen, a soft hyphen, smart quotes, different spacing/currency,
+    or British vs. American orthographic variations (e.g. hospitalisation vs hospitalization).
     """
     normalized = normalize_text(text).casefold()
+    # Collapse commas between digits in numbers and currency (e.g. "5,00,000" -> "500000")
+    normalized = re.sub(r"(?<=\d),(?=\d)", "", normalized)
     normalized = (
         normalized.replace("\u20b9", "rs")
         .replace("\u20a8", "rs")
         .replace("inr", "rs")
+        .replace("rupees", "rs")
+        .replace("rupee", "rs")
     )
+    # Reconcile British / Commonwealth vs American spelling differences in policy wordings
+    normalized = normalized.replace("hospitalisation", "hospitalization")
+    normalized = normalized.replace("paediatric", "pediatric")
+    normalized = normalized.replace("orthopaedic", "orthopedic")
+    normalized = normalized.replace("tumour", "tumor")
+    normalized = normalized.replace("tumours", "tumors")
+    normalized = normalized.replace("anaesthesia", "anesthesia")
+    normalized = normalized.replace("anaesthetic", "anesthetic")
+    normalized = normalized.replace("programme", "program")
+    normalized = normalized.replace("cheque", "check")
+    normalized = normalized.replace("diarrhoea", "diarrhea")
     return _MATCH_IGNORED.sub("", normalized)
 
 

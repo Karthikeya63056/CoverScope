@@ -49,15 +49,28 @@ _STOPWORDS = frozenset({
 })
 
 _DOMAIN_KEYWORDS: dict[str, set[str]] = {
-    "maternity_newborn": {"maternity", "delivery", "new born", "newborn", "infant", "obstetric"},
-    "bariatric": {"bariatric", "weight loss", "obesity", "metabolic"},
-    "dental": {"dental", "denture", "teeth", "tooth", "oral"},
-    "ophthalmic": {"cataract", "ophthalmic", "eye", "lens"},
+    "maternity_newborn": {
+        "maternity", "delivery", "new born", "newborn", "infant", "obstetric",
+        "pregnancy", "pregnant", "caesarean", "cesarean", "c-section", "childbirth",
+        "prenatal", "postnatal",
+    },
+    "bariatric": {
+        "bariatric", "weight loss", "obesity", "metabolic", "gastric bypass",
+        "sleeve gastrectomy", "liposuction", "weight control",
+    },
+    "dental": {
+        "dental", "denture", "teeth", "tooth", "oral", "root canal",
+        "orthodontic", "periodontal", "extraction", "gums",
+    },
+    "ophthalmic": {
+        "cataract", "ophthalmic", "eye", "lens", "lasik", "refractive",
+        "glaucoma", "prk", "vision",
+    },
     "ayush": {"ayush", "ayurveda", "homeopathy", "unani", "siddha", "yoga", "naturopathy"},
     "motor": {"vehicle", "car", "motor", "repair", "traffic"},
     "organ_donor": {"organ donor", "donor"},
     "hospital_cash": {"hospital cash", "daily cash", "cash benefit"},
-    "ambulance": {"ambulance", "road ambulance"},
+    "ambulance": {"ambulance", "road ambulance", "transport", "transportation", "transit"},
 }
 
 
@@ -143,7 +156,11 @@ def _check_citation_relevance(
             for num, u in answer_durations:
                 a_dur_by_unit.setdefault(_norm_unit(u), set()).add(int(num))
 
-            has_any_corroborating_dur = any(
+            q_months = {n * 12 for n in q_dur_by_unit.get("year", set())} | q_dur_by_unit.get("month", set())
+            a_months = {n * 12 for n in a_dur_by_unit.get("year", set())} | a_dur_by_unit.get("month", set())
+            has_month_year_match = bool(q_months & a_months)
+
+            has_any_corroborating_dur = has_month_year_match or any(
                 unit in a_dur_by_unit and bool(q_dur_by_unit[unit] & a_dur_by_unit[unit])
                 for unit in q_dur_by_unit
             )

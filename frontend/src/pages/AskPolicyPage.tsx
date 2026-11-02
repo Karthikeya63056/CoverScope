@@ -67,7 +67,13 @@ function getStoredConversations(): LocalConversation[] {
 function saveStoredConversations(threads: LocalConversation[]) {
   try {
     localStorage.setItem(getUserStorageKey(), JSON.stringify(threads.slice(0, 100)));
-  } catch {}
+  } catch (err) {
+    try {
+      localStorage.setItem(getUserStorageKey(), JSON.stringify(threads.slice(0, 20)));
+    } catch {
+      console.warn('LocalStorage quota reached, unable to cache conversation history locally.');
+    }
+  }
 }
 
 function getDateGroup(dateStr: string): string {

@@ -20,7 +20,7 @@ def open_pdf_bytes(data: bytes, filename: str = "uploaded.pdf") -> OpenedPDF:
         raise PDFValidationError("The uploaded file is empty.")
     if not filename.lower().endswith(".pdf"):
         raise PDFValidationError("Please upload a PDF file.")
-    if not data.startswith(b"%PDF-"):
+    if b"%PDF-" not in data[:1024]:
         raise PDFValidationError(
             "The file does not appear to be a valid PDF. Please choose a PDF document."
         )

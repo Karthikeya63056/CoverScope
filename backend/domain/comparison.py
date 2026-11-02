@@ -590,7 +590,11 @@ class PolicyComparisonEngine:
         # 1. PED Waiting Period Gap
         ped_comp = comp_map.get(ComparisonDimensionKey.PED_WAITING_PERIOD)
         if ped_comp:
-            for p, val in [(policy_a, ped_comp.policy_a_value), (policy_b, ped_comp.policy_b_value)]:
+            eval_list = [(policy_a, ped_comp.policy_a_value)] if is_identical else [
+                (policy_a, ped_comp.policy_a_value),
+                (policy_b, ped_comp.policy_b_value),
+            ]
+            for p, val in eval_list:
                 if val.is_available and val.numeric_amount is not None:
                     wait_m = int(val.numeric_amount)
                     elapsed = assumptions.elapsed_months
@@ -618,7 +622,11 @@ class PolicyComparisonEngine:
         # 2. Co-Payment Out-Of-Pocket Gap
         copay_comp = comp_map.get(ComparisonDimensionKey.COPAYMENT)
         if copay_comp:
-            for p, val in [(policy_a, copay_comp.policy_a_value), (policy_b, copay_comp.policy_b_value)]:
+            eval_list = [(policy_a, copay_comp.policy_a_value)] if is_identical else [
+                (policy_a, copay_comp.policy_a_value),
+                (policy_b, copay_comp.policy_b_value),
+            ]
+            for p, val in eval_list:
                 if val.is_available and val.numeric_amount is not None and val.numeric_amount > 0.0:
                     pct = val.numeric_amount
                     entry_age = assumptions.member_entry_age
@@ -653,7 +661,11 @@ class PolicyComparisonEngine:
         # 3. Specific Disease 24-Month Waiting Period Notice
         spec_comp = comp_map.get(ComparisonDimensionKey.SPECIFIC_DISEASE_WAITING_PERIOD)
         if spec_comp:
-            for p, val in [(policy_a, spec_comp.policy_a_value), (policy_b, spec_comp.policy_b_value)]:
+            eval_list = [(policy_a, spec_comp.policy_a_value)] if is_identical else [
+                (policy_a, spec_comp.policy_a_value),
+                (policy_b, spec_comp.policy_b_value),
+            ]
+            for p, val in eval_list:
                 if val.is_available and val.numeric_amount is not None:
                     wait_m = int(val.numeric_amount)
                     gaps.append(

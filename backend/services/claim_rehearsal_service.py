@@ -50,6 +50,13 @@ _RAW_SPECIFIC_AILMENT_PATTERNS = {
     "maternity": "Maternity delivery / Caesarean",
     "delivery": "Maternity delivery",
     "caesarean": "Caesarean section delivery",
+    "road ambulance": "Road ambulance transportation",
+    "ambulance": "Road ambulance transportation",
+    "ayush": "AYUSH alternative inpatient treatment",
+    "ayurveda": "Ayurvedic inpatient hospitalization",
+    "organ donor": "Organ donor inpatient hospitalization",
+    "dental": "Dental day-care / surgical treatment",
+    "glaucoma": "Glaucoma / Ophthalmic surgery",
 }
 SPECIFIC_AILMENT_PATTERNS = dict(
     sorted(_RAW_SPECIFIC_AILMENT_PATTERNS.items(), key=lambda x: len(x[0]), reverse=True)

@@ -176,7 +176,8 @@ def retrieve_chunks(
     q_lower = question.lower()
     expansion_terms: list[str] = []
     for phrase, hints in INSURANCE_CONCEPT_EXPANSIONS.items():
-        if phrase in q_lower:
+        matched = phrase in q_lower if " " in phrase else bool(re.search(r"\b" + re.escape(phrase) + r"\b", q_lower))
+        if matched:
             for h in hints:
                 norm_h = _normalise_term(h.lower())
                 if (

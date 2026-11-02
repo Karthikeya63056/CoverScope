@@ -71,6 +71,9 @@ def classify_intent(question: str) -> RequestIntent:
             "cover", "covered", "policy", "claim", "wait", "limit", "room",
             "disease", "ped", "cash", "pay", "deduct", "cataract",
             "surgery", "hospital", "ayush", "dental", "icu",
+            "mother", "father", "parent", "parents", "son", "daughter",
+            "spouse", "wife", "husband", "child", "children", "family", "floater",
+            "age", "elderly", "senior", "add", "admit", "admission",
         }
         if not any(t in insurance_terms for t in tokens):
             return RequestIntent.GREETING
