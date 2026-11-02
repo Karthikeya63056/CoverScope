@@ -18,7 +18,7 @@
 
 ## 📽️ Project Explanation & Video Walkthrough
 
-> ### 🔗 **[Click Here to Watch Project Explanation & Demo on Google Drive](https://drive.google.com/drive/folders/1B_8_sample_drive_link_replace_with_yours?usp=sharing)** 
+> ### 🔗 **[Click Here to Watch Project Explanation & Demo on Google Drive](https://drive.google.com/file/d/1sCnbPbyilQAvrAtnO3s8z1e1sXsrKpdt/view?usp=sharing)** 
 >
 > 📌 *Replace the link above with your official Google Drive URL. This presentation covers the architectural design, zero-trust citation verifier, deterministic claim simulation, and a full live user journey from document ingestion to pre-hospitalization claim rehearsal.*
 
